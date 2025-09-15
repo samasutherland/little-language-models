@@ -20,7 +20,7 @@ def main():
     dataset = SimpleStoriesBPEDataset(data["train"], max_length=500)
 
     collate = partial(pad_collate_fn, pad_id=dataset.pad_id)
-    loader = DataLoader(dataset, batch_size=32, shuffle=True, collate_fn=collate,
+    loader = DataLoader(dataset, batch_size=16, shuffle=True, collate_fn=collate,
                         num_workers=4, persistent_workers=True)
 
     torch.set_default_dtype(torch.bfloat16)
