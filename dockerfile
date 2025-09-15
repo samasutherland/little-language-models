@@ -6,4 +6,4 @@ WORKDIR /workspace
 
 COPY . .
 RUN pip install --no-cache-dir -r requirements.txt
-CMD ["bash","-lc","timeout ${TRAIN_MINS:-30}m python3 train_model.py"]
+CMD ["bash","-lc","timeout 30m python3 train_model.py"]
