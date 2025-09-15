@@ -20,7 +20,7 @@ def main():
     dataset = SimpleStoriesBPEDataset(data["train"], max_length=500)
 
     collate = partial(pad_collate_fn, pad_id=dataset.pad_id)
-    loader = DataLoader(dataset, batch_size=16, shuffle=True, collate_fn=collate,
+    loader = DataLoader(dataset, batch_size=48, shuffle=True, collate_fn=collate,
                         num_workers=4, persistent_workers=True)
 
     torch.set_default_dtype(torch.bfloat16)
@@ -114,7 +114,7 @@ def main():
 
     for epoch in range(start_epoch + 1, epochs + 1):
         model.train()
-        pbar = tqdm(loader, desc=f"epoch {epoch}/{epochs}", total=5000, file=sys.stdout)
+        pbar = tqdm(loader, desc=f"epoch {epoch}/{epochs}", total=5000, file=sys.stdout, miniters=10)
         epoch_loss, n_batches = 0.0, 0
         for batch in pbar:
             if global_step % 10 == 0:

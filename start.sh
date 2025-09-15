@@ -10,7 +10,7 @@ fi
 exec > >(tee "stdout.log")
 exec 2> >(tee "stderr.log" >&2)
 
-timeout -k 30s 5m python3 train_model.py
+timeout -k 30s 30m python3 train_model.py
 rc=$?
 echo "train_model.py exited with $rc"
 
