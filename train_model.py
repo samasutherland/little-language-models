@@ -1,4 +1,4 @@
-import torch, os
+import torch, os, sys
 from datasets import load_dataset
 from tqdm.auto import tqdm
 from torch.utils.data import DataLoader
@@ -24,7 +24,12 @@ def main():
                         num_workers=4, persistent_workers=True)
 
     torch.set_default_dtype(torch.bfloat16)
-    vocab_size = max(max(dataset.tok.vocab.keys()), dataset.pad_id, dataset.end_id) + 1
+    vocab_size = max(
+        max(dataset.tok.vocab.keys(), default=-1),
+        max(getattr(dataset.tok, "merge_dict", {}).values(), default=-1),
+        dataset.pad_id,
+        dataset.end_id,
+    ) + 1
     model = Transformer(16, vocab_size=vocab_size, max_context=500, embedding_dim=768, n_heads=8, qk_dim=96, projection_dim=256).to(dtype=torch.bfloat16, device=device)
 
     model.embedding.weight.data = model.embedding.weight.data.to(torch.bfloat16)
@@ -107,18 +112,17 @@ def main():
     # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.3, patience=30)
     scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, 0.01, total_steps=5000)
 
-
     for epoch in range(start_epoch + 1, epochs + 1):
         model.train()
-        pbar = tqdm(loader, desc=f"epoch {epoch}/{epochs}", total=5000)
+        pbar = tqdm(loader, desc=f"epoch {epoch}/{epochs}", total=5000, file=sys.stdout)
         epoch_loss, n_batches = 0.0, 0
         for batch in pbar:
             if global_step % 10 == 0:
                 try:
                     s = generate_sample(prompt_text, 15, 60, temperature=0.9, top_k=50, top_p=0.9)
-                    pbar.write(s)
+                    tqdm.write(s, file=sys.stdout)
                 except Exception as e:
-                    pbar.write(f"[gen err: {e}]")
+                    tqdm.write(f"[gen err: {e}]", file=sys.stdout)
             if global_step % 500 == 0:
                 torch.save({"model": model.state_dict(), "optimizer": optimizer.state_dict(), "step": global_step,
                             "epoch": epoch},
