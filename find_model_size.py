@@ -12,11 +12,11 @@ OPTIMIZER_REGISTRY = {"Adam": torch.optim.Adam, "SGD": torch.optim.SGD}
 SCHEDULER_REGISTRY = {"OneCycleLR": OneCycleLR, "Cosine": CosineAnnealingLR}
 
 def find_token_count(model, device, loader, criterion, optimizer, scheduler):
-    step_timer_trigger = 10
-    total_steps = 60
+    step_timer_trigger = 5
+    total_steps = 15
     token_count = 0
 
-    for i, batch in enumerate(loader[:total_steps]):
+    for i, batch in enumerate(loader):
         x = batch["input_ids"].to(device, non_blocking=True)
 
         if i == step_timer_trigger:
@@ -37,11 +37,12 @@ def find_token_count(model, device, loader, criterion, optimizer, scheduler):
     end_time = time.perf_counter()
 
     total_tokens = token_count * 1800 / (end_time - start_time) # number of tokens in 30 min
-    return total_tokens
+    number_of_steps = (total_steps - step_timer_trigger) * 1800 / (end_time - start_time)
+    return total_tokens, number_of_steps
 
 
 def find_max_batch_size(model, device, criterion, optimizer, scheduler, data_cfg, train_cfg, starting_size=16):
-    def check_fits(batch_size, test_steps=5):
+    def check_fits(batch_size, test_steps=3):
         try:
             cfg = copy.deepcopy(train_cfg)
             cfg["batch_size"] = batch_size
@@ -58,6 +59,9 @@ def find_max_batch_size(model, device, criterion, optimizer, scheduler, data_cfg
                 if i > test_steps:
                     break
         except RuntimeError as e:
+            if device == "cuda":
+                torch.cuda.empty_cache()
+            gc.collect()
             return False
         return True
 
@@ -87,7 +91,7 @@ def adjust_model_parameters(target_parameter_count, model_cfg, vocab_size, devic
         model_cfg["global"]["num_layers"] = num_layers
         model_cfg["global"]["embedding_dim"] = num_layers * 128
         model_cfg["global"]["feedforward_dim"] = num_layers * 128 * 4
-        model_cfg["attention"]["nheads"] = num_layers
+        model_cfg["attention"]["n_heads"] = num_layers
 
         model = create_model(model_cfg, vocab_size, device, dataset)
         total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -118,12 +122,12 @@ def adjust_model_parameters(target_parameter_count, model_cfg, vocab_size, devic
         model_cfg["global"]["num_layers"] = max_layers
         model_cfg["global"]["embedding_dim"] = max_layers * 128
         model_cfg["global"]["feedforward_dim"] = max_layers * 128 * 4
-        model_cfg["attention"]["nheads"] = max_layers
+        model_cfg["attention"]["n_heads"] = max_layers
     else:
         model_cfg["global"]["num_layers"] = min_layers
         model_cfg["global"]["embedding_dim"] = min_layers * 128
         model_cfg["global"]["feedforward_dim"] = min_layers * 128 * 4
-        model_cfg["attention"]["nheads"] = min_layers
+        model_cfg["attention"]["n_heads"] = min_layers
 
 
 def main():
@@ -159,7 +163,9 @@ def main():
         dataset, loader, vocab_size = get_data_loader(data_cfg, train_cfg)
 
         total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-        total_tokens = find_token_count(model, device, loader, criterion, optimizer, scheduler)
+        total_tokens, total_steps = find_token_count(model, device, loader, criterion, optimizer, scheduler)
+
+        train_cfg["total_steps"] = total_steps
 
         print(f"Total tokens: {total_tokens}, total params: {total_params}, ratio: {total_tokens / total_params} (target 20)")
 
