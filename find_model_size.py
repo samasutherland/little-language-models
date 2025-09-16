@@ -1,5 +1,6 @@
 import torch, os, sys
 from torch.optim.lr_scheduler import OneCycleLR, CosineAnnealingLR
+from torch.utils.data import DataLoader
 import time
 import copy
 import gc
@@ -41,12 +42,13 @@ def find_token_count(model, device, loader, criterion, optimizer, scheduler):
     return total_tokens, number_of_steps
 
 
-def find_max_batch_size(model, device, criterion, optimizer, scheduler, data_cfg, train_cfg, starting_size=16):
+def find_max_batch_size(model, dataset, device, criterion, optimizer, scheduler, data_cfg, train_cfg, starting_size=16):
     def check_fits(batch_size, test_steps=3):
         try:
             cfg = copy.deepcopy(train_cfg)
             cfg["batch_size"] = batch_size
-            dataset, loader, vocab_size = get_data_loader(data_cfg, cfg)
+            loader = DataLoader(dataset, batch_size=train_cfg["batch_size"], shuffle=True, collate_fn=pad_collate_fn,
+                                num_workers=0, persistent_workers=False)
 
             for i, batch in enumerate(loader):
                 x = batch["input_ids"].to(device, non_blocking=True)
@@ -65,7 +67,7 @@ def find_max_batch_size(model, device, criterion, optimizer, scheduler, data_cfg
             return False
         return True
 
-    min_batch = 0
+    min_batch = 1
     batch_size = starting_size
     while check_fits(batch_size):
         gc.collect()
@@ -101,7 +103,7 @@ def adjust_model_parameters(target_parameter_count, model_cfg, vocab_size, devic
             torch.cuda.empty_cache()
         return total_params
 
-    min_layers = 0
+    min_layers = 1
     num_layers = starting_num_layers
     while compute_total_params(num_layers) < target_parameter_count:
         gc.collect()
@@ -135,6 +137,15 @@ def adjust_model_parameters(target_parameter_count, model_cfg, vocab_size, devic
 
 
 def main():
+    model_cfg_path = Path("experiment/model.toml")
+    data_cfg_path = Path("experiment/data.toml")
+    train_cfg_path = Path("experiment/training.toml")
+
+    model_cfg = parse(model_cfg_path.read_text(encoding="utf-8"))
+    data_cfg = parse(data_cfg_path.read_text(encoding="utf-8"))
+    train_cfg = parse(train_cfg_path.read_text(encoding="utf-8"))
+
+    dataset, loader, vocab_size = get_data_loader(data_cfg, train_cfg)
     for i in range(10):
         device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
         print(f"Using {device} device")
@@ -148,8 +159,6 @@ def main():
         train_cfg = parse(train_cfg_path.read_text(encoding="utf-8"))
 
         print(f"it {i} num_layers: {model_cfg['global']['num_layers']}")
-
-        dataset, loader, vocab_size = get_data_loader(data_cfg, train_cfg)
         model = create_model(model_cfg, vocab_size, device, dataset)
         model.train()
 
@@ -161,10 +170,11 @@ def main():
         decay = SCHEDULER_REGISTRY[train_cfg["scheduler"]](optimizer, T_max=train_cfg["total_steps"] - train_cfg["warmup_steps"], **train_cfg["scheduler_kwargs"])
         scheduler = torch.optim.lr_scheduler.SequentialLR(optimizer, schedulers=[warmup, decay], milestones=[train_cfg["warmup_steps"]])
 
-        batch_size = find_max_batch_size(model, device, criterion, optimizer, scheduler, data_cfg, train_cfg, starting_size=16)
+        batch_size = find_max_batch_size(model, dataset, device, criterion, optimizer, scheduler, data_cfg, train_cfg, starting_size=16)
         print(f"Max batch size: {batch_size}")
         train_cfg["batch_size"] = batch_size
-        dataset, loader, vocab_size = get_data_loader(data_cfg, train_cfg)
+        loader = DataLoader(dataset, batch_size=train_cfg["batch_size"], shuffle=True, collate_fn=pad_collate_fn,
+                            num_workers=4, persistent_workers=False)
 
         total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
         total_tokens, total_steps = find_token_count(model, device, loader, criterion, optimizer, scheduler)
