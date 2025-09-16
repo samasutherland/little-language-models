@@ -38,6 +38,16 @@ jobs:
     needs: build-push
     runs-on: ubuntu-latest
     steps:
+      - name: Preflight
+        shell: bash
+        run: |
+          code=$(curl -sS -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}" \
+            https://rest.runpod.io/v1/pods)
+          echo "GET /v1/pods -> $code"
+          if [ "$code" -ne 200 ]; then
+            echo "Auth failed (expect 200). Check key permissions (set to All) and header format."; exit 1
+          fi
       - name: Create pod
         shell: bash
         run: |
