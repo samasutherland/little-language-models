@@ -1,0 +1,5 @@
+# Data configs
+
+dataset = "SimpleStories/SimpleStories"
+split = "train"
+max_length = 500

@@ -1,5 +1,9 @@
 import torch
 from torch import nn
+import torch.nn.functional as F
+
+NORM_REGISTRY = {"RMSNorm": nn.RMSNorm}
+ACTIVATION_REGISTRY = {"GELU": nn.GELU}
 
 
 class RoPETransform(nn.Module):
@@ -20,14 +24,14 @@ class RoPETransform(nn.Module):
         batch_dim, n_heads, seq, qk_dim = x.shape
         # x is batch, n_heads, seq, qk_dim
         x1, x2 = x[...,::2], x[...,1::2]
-        cos = self.cos_vals[-seq:].to(dtype=x.dtype, device=x.device)
-        sin = self.sin_vals[-seq:].to(dtype=x.dtype, device=x.device)
+        cos = self.cos_vals[:seq].to(dtype=x.dtype, device=x.device)
+        sin = self.sin_vals[:seq].to(dtype=x.dtype, device=x.device)
         x_rotated = torch.stack([x1 * cos - x2 * sin, x1 * sin + x2 * cos], dim=-1).flatten(-2).contiguous()
 
         return x_rotated
 
 class MaskedMultiHeadLatentRoPESelfAttention(nn.Module):
-    def __init__(self, embedding_dim=384, projection_dim=128, qk_dim=64, v_dim=64, causal=True, max_context=100, n_heads=6, sdpa=False, dropout=0.1):
+    def __init__(self, embedding_dim=384, project_kv=True, projection_dim=128, qk_dim=64, v_dim=64, causal=True, max_context=100, n_heads=6, sdpa=False, dropout=0.1, rope_kwargs=None):
         super().__init__()
         self.embedding_dim = embedding_dim
         self.qk_dim = qk_dim
@@ -43,7 +47,10 @@ class MaskedMultiHeadLatentRoPESelfAttention(nn.Module):
 
         self.inv_sqrt_qk_dim = 1/qk_dim ** 0.5
 
-        self.qk_rope = RoPETransform(max_context, qk_dim)
+        if rope_kwargs is None:
+            rope_kwargs = {}
+
+        self.qk_rope = RoPETransform(max_context, qk_dim, **rope_kwargs)
         #self.v_rope = RoPETransform(max_context, v_dim)
 
         # Want the total number of parameters for kv to be = to the number of parameters for q.
@@ -64,7 +71,10 @@ class MaskedMultiHeadLatentRoPESelfAttention(nn.Module):
         # d_proj = 384 / 3 = 128
 
         self.q = nn.Linear(embedding_dim, qk_dim * n_heads) # Grouped matrix for the heads
-        self.kv = nn.Sequential(nn.Linear(embedding_dim, projection_dim), nn.Linear(projection_dim, (qk_dim + v_dim) * n_heads)) # Grouped matrix for the heads and k and v
+        if project_kv:
+            self.kv = nn.Sequential(nn.Linear(embedding_dim, projection_dim), nn.Linear(projection_dim, (qk_dim + v_dim) * n_heads)) # Grouped matrix for the heads and k and v
+        else:
+            self.kv = nn.Linear(embedding_dim, (qk_dim + v_dim) * n_heads)
 
         if causal:
             mask = torch.zeros(max_context, max_context)
@@ -105,19 +115,18 @@ class MaskedMultiHeadLatentRoPESelfAttention(nn.Module):
                                                          self.v_dim * self.n_heads))  # batch, seq, embedding_dim
 
 class TransformerLayer(nn.Module):
-    def __init__(self, embedding_dim=384, projection_dim=128, qk_dim=64, v_dim=64, feedforward_dim=1536, causal=True, max_context=100, n_heads=6, norm=nn.RMSNorm, norm_kwargs=None, attn_dropout=0.1, ffn_dropout=0.1, prob_dropout=0.1):
+    def __init__(self, global_kwargs, attention_kwargs, dropout_kwargs, norm_kwargs, rope_kwargs, norm):
         super().__init__()
-        if norm_kwargs is None:
-            norm_kwargs = {}
-        self.attn_norm = norm(embedding_dim, **norm_kwargs)
-        self.ffn_norm = norm(embedding_dim, **norm_kwargs)
 
-        self.attn_dropout = nn.Dropout(attn_dropout)
-        self.ffn_dropout = nn.Dropout(ffn_dropout)
+        self.attn_norm = norm(global_kwargs["embedding_dim"], **norm_kwargs)
+        self.ffn_norm = norm(global_kwargs["embedding_dim"], **norm_kwargs)
 
-        self.attention = MaskedMultiHeadLatentRoPESelfAttention(embedding_dim=embedding_dim, projection_dim=projection_dim, qk_dim=qk_dim, v_dim=v_dim, causal=causal, max_context=max_context, n_heads=n_heads, dropout=prob_dropout)
+        self.attn_dropout = nn.Dropout(dropout_kwargs["attn_dropout"])
+        self.ffn_dropout = nn.Dropout(dropout_kwargs["ffn_dropout"])
 
-        self.ffn = nn.Sequential(nn.Linear(embedding_dim, feedforward_dim), nn.GELU(), nn.Dropout(ffn_dropout), nn.Linear(feedforward_dim, embedding_dim))
+        self.attention = MaskedMultiHeadLatentRoPESelfAttention(embedding_dim=global_kwargs["embedding_dim"], max_context=global_kwargs["max_context"], dropout=dropout_kwargs["attn_dropout"], rope_kwargs=rope_kwargs, **attention_kwargs)
+
+        self.ffn = nn.Sequential(nn.Linear(global_kwargs["embedding_dim"], global_kwargs["feedforward_dim"]), ACTIVATION_REGISTRY[global_kwargs["activation"]], self.ffn_dropout, nn.Linear(global_kwargs["feedforward_dim"], global_kwargs["embedding_dim"]))
 
 
     def forward(self, x):
@@ -127,13 +136,23 @@ class TransformerLayer(nn.Module):
         return x
 
 class Transformer(nn.Module):
-    def __init__(self, num_layers, vocab_size=10000, embedding_dim=384, projection_dim=128, qk_dim=64, v_dim=64, feedforward_dim=1536, causal=True, max_context=100, n_heads=6, norm=nn.RMSNorm, norm_kwargs=None, attn_dropout=0.1, ffn_dropout=0.1):
+    def __init__(self, model_kwargs):
         super().__init__()
-        self.embedding = nn.Embedding(vocab_size, embedding_dim)
-        self.transformer_stack = nn.Sequential(*[TransformerLayer(embedding_dim=embedding_dim, projection_dim=projection_dim, qk_dim=qk_dim, v_dim=v_dim, feedforward_dim=feedforward_dim, causal=causal, max_context=max_context, n_heads=n_heads, norm=norm, norm_kwargs=norm_kwargs, attn_dropout=attn_dropout, ffn_dropout=ffn_dropout) for _ in range(num_layers)])
+
+        global_kwargs = model_kwargs["global"]
+        attention_kwargs = model_kwargs["attention"]
+        norm_kwargs = model_kwargs["norm"]
+        dropout_kwargs = model_kwargs["dropout"]
+        rope_kwargs = model_kwargs["rope"]
+
+        norm = NORM_REGISTRY[norm_kwargs.pop("type")]
 
 
-        self.final_norm = norm(embedding_dim, **{} if norm_kwargs is None else norm_kwargs)
+        self.embedding = nn.Embedding(global_kwargs["vocab_size"], global_kwargs["embedding_dim"])
+        self.transformer_stack = nn.Sequential(*[TransformerLayer(global_kwargs, attention_kwargs, dropout_kwargs, norm_kwargs, rope_kwargs, norm) for _ in range(global_kwargs["num_layers"])])
+
+
+        self.final_norm = norm(global_kwargs["embedding_dim"], **{} if norm_kwargs is None else norm_kwargs)
 
     def forward(self, x):
         x = self.embedding(x)

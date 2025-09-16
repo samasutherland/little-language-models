@@ -1,0 +1,14 @@
+# Training hyperparameters
+
+batch_size = 16
+loss = "CrossEntropyLoss"
+optimizer = "Adam"
+base_lr = 1e-3
+epochs = 1
+test_prompt = "The dog"
+total_steps = 5000
+
+scheduler = "OneCycleLR"
+
+[scheduler_kwargs]
+max_lr = 0.01

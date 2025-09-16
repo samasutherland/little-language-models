@@ -1,0 +1,30 @@
+# Model Parameters
+
+model = "Transformer"
+
+[global]
+num_layers = 16
+embedding_dim = 768
+feedforward_dim = 1536
+max_context = 500
+activation = "GELU"
+
+[attention]
+n_heads=8
+project_kv = true
+projection_dim = 256
+qk_dim = 96
+v_dim = 96
+causal = true
+sdpa = false
+
+
+[norm]
+type = "RMSNorm"
+
+[dropout]
+attn_dropout = 0.1
+ffn_dropout = 0.1
+
+[rope]
+base = 10000
