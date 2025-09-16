@@ -1,0 +1,187 @@
+import torch, os, sys
+from torch.optim.lr_scheduler import OneCycleLR, CosineAnnealingLR
+import time
+import copy
+import gc
+from lib.helpers import generate_sample, pad_collate_fn, load_configs, get_data_loader, create_model
+from pathlib import Path
+from tomlkit import parse, dumps
+
+LOSS_REGISTRY = {"CrossEntropyLoss": torch.nn.CrossEntropyLoss}
+OPTIMIZER_REGISTRY = {"Adam": torch.optim.Adam, "SGD": torch.optim.SGD}
+SCHEDULER_REGISTRY = {"OneCycleLR": OneCycleLR, "Cosine": CosineAnnealingLR}
+
+def find_token_count(model, device, loader, criterion, optimizer, scheduler):
+    step_timer_trigger = 10
+    total_steps = 60
+    token_count = 0
+
+    for i, batch in enumerate(loader[:total_steps]):
+        x = batch["input_ids"].to(device, non_blocking=True)
+
+        if i == step_timer_trigger:
+            token_count = 0
+            torch.cuda.synchronize()
+            start_time = time.perf_counter()
+
+        token_count += torch.prod(torch.tensor(x.shape)).item()
+        logits = model(x[:, :-1])
+        loss = criterion(logits.reshape(-1, logits.size(-1)), x[:, 1:].reshape(-1))
+        loss.backward()
+        optimizer.step()
+        scheduler.step()
+        optimizer.zero_grad()
+        if i == total_steps - 1:
+            break
+    torch.cuda.synchronize()
+    end_time = time.perf_counter()
+
+    total_tokens = token_count * 1800 / (end_time - start_time) # number of tokens in 30 min
+    return total_tokens
+
+
+def find_max_batch_size(model, device, criterion, optimizer, scheduler, data_cfg, train_cfg, starting_size=16):
+    def check_fits(batch_size, test_steps=5):
+        try:
+            cfg = copy.deepcopy(train_cfg)
+            cfg["batch_size"] = batch_size
+            dataset, loader, vocab_size = get_data_loader(data_cfg, cfg)
+
+            for i, batch in enumerate(loader):
+                x = batch["input_ids"].to(device, non_blocking=True)
+                logits = model(x[:, :-1])
+                loss = criterion(logits.reshape(-1, logits.size(-1)), x[:, 1:].reshape(-1))
+                loss.backward()
+                optimizer.step()
+                scheduler.step()
+                optimizer.zero_grad()
+                if i > test_steps:
+                    break
+        except RuntimeError as e:
+            return False
+        return True
+
+    min_batch = 0
+    batch_size = starting_size
+    while check_fits(batch_size):
+        gc.collect()
+        min_batch = batch_size
+        batch_size = 2 * min_batch
+
+    max_batch = batch_size
+
+    while max_batch - min_batch > 1:
+        batch_size = min_batch + (max_batch - min_batch)//2
+        if check_fits(batch_size):
+            gc.collect()
+            min_batch = batch_size
+        else:
+            gc.collect()
+            max_batch = batch_size
+
+    return min_batch
+
+
+def adjust_model_parameters(target_parameter_count, model_cfg, vocab_size, device, dataset, starting_num_layers=8):
+    def compute_total_params(num_layers):
+        model_cfg["global"]["num_layers"] = num_layers
+        model_cfg["global"]["embedding_dim"] = num_layers * 128
+        model_cfg["global"]["feedforward_dim"] = num_layers * 128 * 4
+        model_cfg["attention"]["nheads"] = num_layers
+
+        model = create_model(model_cfg, vocab_size, device, dataset)
+        total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        return total_params
+
+    min_layers = 0
+    num_layers = starting_num_layers
+    while compute_total_params(num_layers) < target_parameter_count:
+        gc.collect()
+        min_layers = num_layers
+        num_layers = num_layers * 2
+
+    max_layers = num_layers
+
+    while max_layers - min_layers > 1:
+        num_layers = min_layers + (max_layers - min_layers) // 2
+        if compute_total_params(num_layers) < target_parameter_count:
+            gc.collect()
+            min_layers = num_layers
+        else:
+            max_layers = num_layers
+
+    min_diff = target_parameter_count - compute_total_params(min_layers)
+    max_diff = compute_total_params(max_layers) - target_parameter_count
+    gc.collect()
+
+    if min_diff > max_diff:
+        model_cfg["global"]["num_layers"] = max_layers
+        model_cfg["global"]["embedding_dim"] = max_layers * 128
+        model_cfg["global"]["feedforward_dim"] = max_layers * 128 * 4
+        model_cfg["attention"]["nheads"] = max_layers
+    else:
+        model_cfg["global"]["num_layers"] = min_layers
+        model_cfg["global"]["embedding_dim"] = min_layers * 128
+        model_cfg["global"]["feedforward_dim"] = min_layers * 128 * 4
+        model_cfg["attention"]["nheads"] = min_layers
+
+
+def main():
+    for i in range(10):
+        device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
+        print(f"Using {device} device")
+
+        model_cfg_path = Path("experiment/model.toml")
+        data_cfg_path = Path("experiment/data.toml")
+        train_cfg_path = Path("experiment/training.toml")
+
+        model_cfg = parse(model_cfg_path.read_text(encoding="utf-8"))
+        data_cfg = parse(data_cfg_path.read_text(encoding="utf-8"))
+        train_cfg = parse(train_cfg_path.read_text(encoding="utf-8"))
+
+        print(f"it {i} num_layers: {model_cfg['global']['num_layers']}")
+
+        dataset, loader, vocab_size = get_data_loader(data_cfg, train_cfg)
+        model = create_model(model_cfg, vocab_size, device, dataset)
+        model.train()
+
+        # Define training params
+        criterion = LOSS_REGISTRY[train_cfg["loss"]](ignore_index=dataset.pad_id)
+        optimizer = OPTIMIZER_REGISTRY[train_cfg["optimizer"]](model.parameters(), lr=train_cfg["base_lr"])
+
+        warmup = torch.optim.lr_scheduler.LinearLR(optimizer, total_iters=train_cfg["warmup_steps"])
+        decay = SCHEDULER_REGISTRY[train_cfg["scheduler"]](optimizer, T_max=train_cfg["total_steps"] - train_cfg["warmup_steps"], **train_cfg["scheduler_kwargs"])
+        scheduler = torch.optim.lr_scheduler.SequentialLR(optimizer, schedulers=[warmup, decay], milestones=[train_cfg["warmup_steps"]])
+
+        batch_size = find_max_batch_size(model, device, criterion, optimizer, scheduler, data_cfg, train_cfg, starting_size=16)
+        print(f"Max batch size: {batch_size}")
+        train_cfg["batch_size"] = batch_size
+        dataset, loader, vocab_size = get_data_loader(data_cfg, train_cfg)
+
+        total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        total_tokens = find_token_count(model, device, loader, criterion, optimizer, scheduler)
+
+        print(f"Total tokens: {total_tokens}, total params: {total_params}, ratio: {total_tokens / total_params} (target 20)")
+
+        if abs((total_tokens / total_params) - 20) < 2: # target is 20 tokens per parameter
+            break
+
+        target_parameter_count = total_tokens // 20
+
+        adjust_model_parameters(target_parameter_count, model_cfg, vocab_size, device, dataset, starting_num_layers=model_cfg["global"]["num_layers"])
+
+        del model, loader, dataset, optimizer, criterion, scheduler
+        gc.collect()
+
+        model_cfg_path.write_text(dumps(model_cfg), encoding="utf-8")
+        data_cfg_path.write_text(dumps(data_cfg), encoding="utf-8")
+        train_cfg_path.write_text(dumps(train_cfg), encoding="utf-8")
+
+
+if __name__ == "__main__":
+    import torch.multiprocessing as mp
+    try:
+        mp.set_start_method("spawn", force=True)
+    except RuntimeError:
+        pass
+    main()
