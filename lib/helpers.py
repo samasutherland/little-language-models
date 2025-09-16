@@ -1,5 +1,7 @@
 import torch
 
+import tomllib
+
 def generate_sample(model, dataset, device, prompt, n_words=15, max_new_tokens=60, temperature=1.0, top_k=50, top_p=0.9):
     def _filter(logits, top_k, top_p):
         if top_k and top_k > 0:
@@ -40,3 +42,13 @@ def pad_collate_fn(batch, pad_id):
     x = torch.nn.utils.rnn.pad_sequence(batch, batch_first=True, padding_value=pad_id)
     m = (x != pad_id).long()
     return {"input_ids": x, "attention_mask": m}
+
+def load_configs():
+    with open("experiment/model.toml", "rb") as f:
+        model_cfg = tomllib.load(f)
+    with open("experiment/data.toml", "rb") as f:
+        data_cfg = tomllib.load(f)
+    with open("experiment/training.toml", "rb") as f:
+        train_cfg = tomllib.load(f)
+
+    return model_cfg, data_cfg, train_cfg

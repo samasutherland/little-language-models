@@ -9,26 +9,18 @@ from lib.models import MODEL_REGISTRY
 from aim import Run
 import math
 import tomllib
-from lib.helpers import generate_sample, pad_collate_fn
+from lib.helpers import generate_sample, pad_collate_fn, load_configs
 
 LOSS_REGISTRY = {"CrossEntropyLoss": torch.nn.CrossEntropyLoss}
 OPTIMIZER_REGISTRY = {"Adam": torch.optim.Adam, "SGD": torch.optim.SGD}
 SCHEDULER_REGISTRY = {"OneCycleLR": OneCycleLR}
-
-
-
 
 def main():
     device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
     print(f"Using {device} device")
 
     # Import configs
-    with open("experiment/model.toml", "rb") as f:
-        model_cfg = tomllib.load(f)
-    with open("experiment/data.toml", "rb") as f:
-        data_cfg = tomllib.load(f)
-    with open("experiment/training.toml", "rb") as f:
-        train_cfg = tomllib.load(f)
+    model_cfg, data_cfg, train_cfg = load_configs()
 
     # Define data loader
     data = load_dataset(data_cfg["dataset"])
@@ -75,14 +67,14 @@ def main():
 
     experiment_name = "deepseek_transformer" if model_cfg["attention"]["project_kv"] else "dense_transformer"
 
-    run = Run(experiment = experiment_name,
-              run_hash = os.environ["RUNPOD_POD_ID"])
+    run = Run(experiment = experiment_name)
     run["model_cfg"] = model_cfg
     run["data_cfg"] = data_cfg
     run["train_cfg"] = train_cfg
 
     total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     run["param_count"] = total_params
+    run["data_folder"] = os.environ["RUNPOD_POD_ID"]
 
     for epoch in range(start_epoch + 1, epochs + 1):
         model.train()
