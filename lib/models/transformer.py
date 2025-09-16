@@ -145,14 +145,15 @@ class Transformer(nn.Module):
         dropout_kwargs = model_kwargs["dropout"]
         rope_kwargs = model_kwargs["rope"]
 
-        norm = NORM_REGISTRY[norm_kwargs.pop("type")]
+        norm = NORM_REGISTRY[norm_kwargs["type"]]
+        updated_norm_kwargs = {key: val for key, val in norm_kwargs.items() if key != "type"}
 
 
         self.embedding = nn.Embedding(global_kwargs["vocab_size"], global_kwargs["embedding_dim"])
-        self.transformer_stack = nn.Sequential(*[TransformerLayer(global_kwargs, attention_kwargs, dropout_kwargs, norm_kwargs, rope_kwargs, norm) for _ in range(global_kwargs["num_layers"])])
+        self.transformer_stack = nn.Sequential(*[TransformerLayer(global_kwargs, attention_kwargs, dropout_kwargs, updated_norm_kwargs, rope_kwargs, norm) for _ in range(global_kwargs["num_layers"])])
 
 
-        self.final_norm = norm(global_kwargs["embedding_dim"], **{} if norm_kwargs is None else norm_kwargs)
+        self.final_norm = norm(global_kwargs["embedding_dim"], **{} if updated_norm_kwargs is None else updated_norm_kwargs)
 
     def forward(self, x):
         x = self.embedding(x)

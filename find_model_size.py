@@ -37,7 +37,7 @@ def find_token_count(model, device, loader, criterion, optimizer, scheduler):
     end_time = time.perf_counter()
 
     total_tokens = token_count * 1800 / (end_time - start_time) # number of tokens in 30 min
-    number_of_steps = (total_steps - step_timer_trigger) * 1800 / (end_time - start_time)
+    number_of_steps = int((total_steps - step_timer_trigger) * 1800 / (end_time - start_time))
     return total_tokens, number_of_steps
 
 
@@ -95,6 +95,10 @@ def adjust_model_parameters(target_parameter_count, model_cfg, vocab_size, devic
 
         model = create_model(model_cfg, vocab_size, device, dataset)
         total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        del model
+        gc.collect()
+        if device == "cuda":
+            torch.cuda.empty_cache()
         return total_params
 
     min_layers = 0
