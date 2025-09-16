@@ -1,69 +1,35 @@
 import torch, os, sys
-from datasets import load_dataset
-from torch.optim.lr_scheduler import OneCycleLR
+from torch.optim.lr_scheduler import OneCycleLR, CosineAnnealingLR
 from tqdm.auto import tqdm
-from torch.utils.data import DataLoader
-from functools import partial
-from data.datasets import SimpleStoriesBPEDataset
-from lib.models import MODEL_REGISTRY
 from aim import Run
 import math
 import tomllib
-from lib.helpers import generate_sample, pad_collate_fn, load_configs
+from lib.helpers import generate_sample, pad_collate_fn, load_configs, get_data_loader, create_model
 
 LOSS_REGISTRY = {"CrossEntropyLoss": torch.nn.CrossEntropyLoss}
 OPTIMIZER_REGISTRY = {"Adam": torch.optim.Adam, "SGD": torch.optim.SGD}
-SCHEDULER_REGISTRY = {"OneCycleLR": OneCycleLR}
+SCHEDULER_REGISTRY = {"OneCycleLR": OneCycleLR, "Cosine": CosineAnnealingLR}
 
 def main():
     device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
     print(f"Using {device} device")
 
-    # Import configs
     model_cfg, data_cfg, train_cfg = load_configs()
-
-    # Define data loader
-    data = load_dataset(data_cfg["dataset"])
-    dataset = SimpleStoriesBPEDataset(data[data_cfg["split"]], max_length=data_cfg["max_length"])
-
-    collate = partial(pad_collate_fn, pad_id=dataset.pad_id)
-    loader = DataLoader(dataset, batch_size=train_cfg["batch_size"], shuffle=True, collate_fn=collate,
-                        num_workers=4, persistent_workers=True)
-
-    torch.set_default_dtype(torch.bfloat16)
-    vocab_size = max(
-        max(dataset.tok.vocab.keys(), default=-1),
-        max(getattr(dataset.tok, "merge_dict", {}).values(), default=-1),
-        dataset.pad_id,
-        dataset.end_id,
-    ) + 1
-
-    # Define model
-    model_cls = MODEL_REGISTRY[model_cfg["model"]]
-
-    model_cfg["global"] = model_cfg["global"] | {"vocab_size": vocab_size}
-
-    model = model_cls(model_cfg).to(dtype=torch.bfloat16, device=device)
-
-    model.embedding.weight.data = model.embedding.weight.data.to(torch.bfloat16)
-    model.embedding.padding_idx = dataset.pad_id
+    dataset, loader, vocab_size = get_data_loader(data_cfg, train_cfg)
+    model = create_model(model_cfg, vocab_size, device, dataset)
+    model.train()
 
     # Define training params
-
     criterion = LOSS_REGISTRY[train_cfg["loss"]](ignore_index=dataset.pad_id)
     optimizer = OPTIMIZER_REGISTRY[train_cfg["optimizer"]](model.parameters(), lr=train_cfg["base_lr"])
 
-    epochs = train_cfg["epochs"]
-    total_steps = train_cfg["total_steps"]
     save_dir = "experiment/checkpoints"
     os.makedirs(save_dir, exist_ok=True)
     best_loss = float("inf")
-    global_step = 0
-    loss_steps, loss_values = [], []
-    prompt_text = train_cfg["test_prompt"]
 
-    start_epoch = 0
-    scheduler = SCHEDULER_REGISTRY[train_cfg["scheduler"]](optimizer, total_steps=total_steps, **train_cfg["scheduler_kwargs"])
+    warmup = torch.optim.lr_scheduler.LinearLR(optimizer, total_iters=train_cfg["warmup_steps"])
+    decay = SCHEDULER_REGISTRY[train_cfg["scheduler"]](optimizer, T_max=train_cfg["total_steps"] - train_cfg["warmup_steps"], **train_cfg["scheduler_kwargs"])
+    scheduler = torch.optim.lr_scheduler.SequentialLR(optimizer, schedulers=[warmup, decay], milestones=[train_cfg["warmup_steps"]])
 
     experiment_name = "deepseek_transformer" if model_cfg["attention"]["project_kv"] else "dense_transformer"
 
@@ -76,41 +42,30 @@ def main():
     run["param_count"] = total_params
     run["data_folder"] = os.environ["RUNPOD_POD_ID"]
 
-    for epoch in range(start_epoch + 1, epochs + 1):
-        model.train()
-        pbar = tqdm(loader, desc=f"epoch {epoch}/{epochs}", total=total_steps, file=sys.stdout, miniters=10, disable=True)
-        epoch_loss, n_batches = 0.0, 0
-        for i, batch in enumerate(pbar):
-            x = batch["input_ids"].to(device, non_blocking=True)
-            logits = model(x[:, :-1])
-            loss = criterion(logits.reshape(-1, logits.size(-1)), x[:, 1:].reshape(-1))
-            loss.backward()
-            loss_steps.append(global_step)
-            loss_values.append(loss.item())
-            optimizer.step()
-            scheduler.step()
-            optimizer.zero_grad()
-
-            global_step += 1
-            epoch_loss += loss.item()
-            n_batches += 1
-            pbar.set_postfix(loss=f"{loss.item():.4f}, lr: {scheduler.get_last_lr()[0]:.2e}")
-
-            lrs = scheduler.get_last_lr()
-            mult_now = lrs[0] / scheduler.max_lrs[0]
-
-            run.track(loss.item(), name="loss", step=i, context={"subset": "train"})
-            run.track(mult_now, name="lr_multiplier", step=i, context={"subset": "train"})
-
-            print(f"LR: {mult_now}, loss: {loss.item()}")
 
 
-            if loss.item() < best_loss:
-                best_loss = loss.item()
-                torch.save({"model": model.state_dict(), "optimizer": optimizer.state_dict(),
-                            "step": global_step, "epoch": epoch}, os.path.join(save_dir, "ckpt_best.pt"))
-                with open(os.path.join(save_dir, "best_loss_step.txt"), "w") as f:
-                    f.write(f"loss of {best_loss} achieved on step {i}")
+    for i, batch in enumerate(loader):
+        x = batch["input_ids"].to(device, non_blocking=True)
+        logits = model(x[:, :-1])
+        loss = criterion(logits.reshape(-1, logits.size(-1)), x[:, 1:].reshape(-1))
+        loss.backward()
+        optimizer.step()
+        scheduler.step()
+        optimizer.zero_grad()
+        current_lr = scheduler.get_last_lr()[0]
+
+        run.track(loss.item(), name="loss", step=i, context={"subset": "train"})
+        run.track(current_lr, name="lr", step=i, context={"subset": "train"})
+
+        print(f"Step: {i}, LR: {current_lr}, loss: {loss.item()}")
+
+
+        if loss.item() < best_loss:
+            best_loss = loss.item()
+            torch.save({"model": model.state_dict(), "optimizer": optimizer.state_dict(),
+                        "step": i}, os.path.join(save_dir, "ckpt_best.pt"))
+            with open(os.path.join(save_dir, "best_loss_step.txt"), "w") as f:
+                f.write(f"loss of {best_loss} achieved on step {i}")
 
 if __name__ == "__main__":
     import torch.multiprocessing as mp

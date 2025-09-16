@@ -3,12 +3,12 @@
 batch_size = 16
 loss = "CrossEntropyLoss"
 optimizer = "Adam"
-base_lr = 1e-3
-epochs = 1
 test_prompt = "The dog"
+base_lr = 1e-4
 total_steps = 5000
 
-scheduler = "OneCycleLR"
+scheduler = "Cosine"
+warmup_steps = 50
 
 [scheduler_kwargs]
-max_lr = 0.01
+eta_min = 1e-5
