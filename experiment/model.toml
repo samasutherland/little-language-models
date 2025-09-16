@@ -11,12 +11,12 @@ activation = "GELU"
 
 [attention]
 n_heads=8
-project_kv = true
+project_kv = false
 projection_dim = 256
-qk_dim = 96
-v_dim = 96
+qk_dim = 128
+v_dim = 128
 causal = true
-sdpa = false
+sdpa = true
 
 
 [norm]

@@ -9,17 +9,14 @@ from lib.models import MODEL_REGISTRY
 from aim import Run
 import math
 import tomllib
-from lib.helpers import generate_sample
+from lib.helpers import generate_sample, pad_collate_fn
 
 LOSS_REGISTRY = {"CrossEntropyLoss": torch.nn.CrossEntropyLoss}
 OPTIMIZER_REGISTRY = {"Adam": torch.optim.Adam, "SGD": torch.optim.SGD}
 SCHEDULER_REGISTRY = {"OneCycleLR": OneCycleLR}
 
 
-def pad_collate_fn(batch, pad_id):
-    x = torch.nn.utils.rnn.pad_sequence(batch, batch_first=True, padding_value=pad_id)
-    m = (x != pad_id).long()
-    return {"input_ids": x, "attention_mask": m}
+
 
 def main():
     device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
@@ -78,7 +75,7 @@ def main():
 
     experiment_name = "deepseek_transformer" if model_cfg["attention"]["project_kv"] else "dense_transformer"
 
-    run = Run(experiment_name = experiment_name,
+    run = Run(experiment = experiment_name,
               run_hash = os.environ["RUNPOD_POD_ID"])
     run["model_cfg"] = model_cfg
     run["data_cfg"] = data_cfg
