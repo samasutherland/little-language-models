@@ -1,4 +1,4 @@
-name: Build & Push Docker image
+name: Build, Push, Train, and Test Model 
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   packages: write
 
 jobs:
-  push:
+  build-push:
     runs-on: ubuntu-latest
     steps:
       -
@@ -32,3 +32,26 @@ jobs:
           tags: |
             docker.io/${{ vars.DOCKERHUB_USERNAME }}/model_trainer:latest
             docker.io/${{ vars.DOCKERHUB_USERNAME }}/model_trainer:sha-${{ github.sha }}
+
+  launch-pod:
+    name: Launch 4090 Pod
+    needs: build-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create pod
+        shell: bash
+        run: |
+          payload='{"templateId":"${{ vars.RUNPOD_TEMPLATE_ID }}","cloudType":"COMMUNITY","gpuCount":1,"gpuTypeIds":["NVIDIA GeForce RTX 4090"]}'
+
+          status=$(curl -sS -o resp.json -w "%{http_code}" \
+            -X POST "https://rest.runpod.io/v1/pods" \
+            -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d "$payload")
+
+          echo "Response ($status):"
+          cat resp.json
+
+          if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+            echo "RunPod create failed."; exit 1
+          fi
