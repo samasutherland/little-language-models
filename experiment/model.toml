@@ -3,14 +3,14 @@
 model = "Transformer"
 
 [global]
-num_layers = 3
-embedding_dim = 384
-feedforward_dim = 1536
+num_layers = 8
+embedding_dim = 768
+feedforward_dim = 3072
 max_context = 500
 activation = "GELU"
 
 [attention]
-n_heads=3
+n_heads=6
 project_kv = false
 projection_dim = 256
 qk_dim = 128
