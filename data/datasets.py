@@ -1,7 +1,6 @@
 from torch.utils.data import Dataset, DataLoader
 
 from lib.tokenizers.raw_tokenizers import RegexBPE
-from lib.model_layers.transformer import Transformer
 import torch
 
 class SimpleStoriesBPEDataset(Dataset):

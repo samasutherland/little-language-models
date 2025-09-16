@@ -78,8 +78,8 @@ def main():
 
     experiment_name = "deepseek_transformer" if model_cfg["attention"]["project_kv"] else "dense_transformer"
 
-    run = Run(repo="./experiment",
-              experiment_name=experiment_name)
+    run = Run(experiment_name = experiment_name,
+              run_hash = os.environ["RUNPOD_POD_ID"])
     run["model_cfg"] = model_cfg
     run["data_cfg"] = data_cfg
     run["train_cfg"] = train_cfg
