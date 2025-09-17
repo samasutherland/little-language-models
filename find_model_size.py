@@ -7,6 +7,7 @@ import gc
 from lib.helpers import generate_sample, pad_collate_fn, load_configs, get_data_loader, create_model
 from pathlib import Path
 from tomlkit import parse, dumps
+from functools import partial
 
 LOSS_REGISTRY = {"CrossEntropyLoss": torch.nn.CrossEntropyLoss}
 OPTIMIZER_REGISTRY = {"Adam": torch.optim.Adam, "SGD": torch.optim.SGD}
@@ -42,12 +43,12 @@ def find_token_count(model, device, loader, criterion, optimizer, scheduler):
     return total_tokens, number_of_steps
 
 
-def find_max_batch_size(model, dataset, device, criterion, optimizer, scheduler, data_cfg, train_cfg, starting_size=16):
+def find_max_batch_size(model, dataset, device, criterion, optimizer, scheduler, data_cfg, train_cfg, collate, starting_size=1):
     def check_fits(batch_size, test_steps=3):
         try:
             cfg = copy.deepcopy(train_cfg)
             cfg["batch_size"] = batch_size
-            loader = DataLoader(dataset, batch_size=train_cfg["batch_size"], shuffle=True, collate_fn=pad_collate_fn,
+            loader = DataLoader(dataset, batch_size=train_cfg["batch_size"], shuffle=True, collate_fn=collate,
                                 num_workers=0, persistent_workers=False)
 
             for i, batch in enumerate(loader):
@@ -88,7 +89,7 @@ def find_max_batch_size(model, dataset, device, criterion, optimizer, scheduler,
     return min_batch
 
 
-def adjust_model_parameters(target_parameter_count, model_cfg, vocab_size, device, dataset, starting_num_layers=8):
+def adjust_model_parameters(target_parameter_count, model_cfg, vocab_size, device, dataset, starting_num_layers=1):
     def compute_total_params(num_layers):
         model_cfg["global"]["num_layers"] = num_layers
         model_cfg["global"]["embedding_dim"] = num_layers * 128
@@ -137,6 +138,7 @@ def adjust_model_parameters(target_parameter_count, model_cfg, vocab_size, devic
 
 
 def main():
+
     model_cfg_path = Path("experiment/model.toml")
     data_cfg_path = Path("experiment/data.toml")
     train_cfg_path = Path("experiment/training.toml")
@@ -146,6 +148,7 @@ def main():
     train_cfg = parse(train_cfg_path.read_text(encoding="utf-8"))
 
     dataset, loader, vocab_size = get_data_loader(data_cfg, train_cfg)
+    collate = partial(pad_collate_fn, pad_id=dataset.pad_id)
     for i in range(10):
         device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
         print(f"Using {device} device")
@@ -170,10 +173,10 @@ def main():
         decay = SCHEDULER_REGISTRY[train_cfg["scheduler"]](optimizer, T_max=train_cfg["total_steps"] - train_cfg["warmup_steps"], **train_cfg["scheduler_kwargs"])
         scheduler = torch.optim.lr_scheduler.SequentialLR(optimizer, schedulers=[warmup, decay], milestones=[train_cfg["warmup_steps"]])
 
-        batch_size = find_max_batch_size(model, dataset, device, criterion, optimizer, scheduler, data_cfg, train_cfg, starting_size=16)
+        batch_size = find_max_batch_size(model, dataset, device, criterion, optimizer, scheduler, data_cfg, train_cfg, collate, starting_size=16)
         print(f"Max batch size: {batch_size}")
         train_cfg["batch_size"] = batch_size
-        loader = DataLoader(dataset, batch_size=train_cfg["batch_size"], shuffle=True, collate_fn=pad_collate_fn,
+        loader = DataLoader(dataset, batch_size=train_cfg["batch_size"], shuffle=True, collate_fn=collate,
                             num_workers=4, persistent_workers=False)
 
         total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
