@@ -64,7 +64,7 @@ def get_data_loader(data_cfg, train_cfg):
 
     collate = partial(pad_collate_fn, pad_id=dataset.pad_id)
     loader = DataLoader(dataset, batch_size=train_cfg["batch_size"], shuffle=False, collate_fn=collate,
-                        num_workers=12, persistent_workers=True, pin_memory=True, prefetch_factor=8)
+                        num_workers=4, persistent_workers=True, pin_memory=True, prefetch_factor=8)
 
     torch.set_default_dtype(torch.bfloat16)
     vocab_size = max(

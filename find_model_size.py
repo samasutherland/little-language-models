@@ -274,7 +274,7 @@ def main():
         train_cfg["batch_size"] = batch_size
 
         loader = DataLoader(dataset, batch_size=train_cfg["batch_size"], shuffle=True, collate_fn=collate,
-                            num_workers=12, persistent_workers=False, pin_memory=True, prefetch_factor=8)
+                            num_workers=4, persistent_workers=False, pin_memory=True, prefetch_factor=8)
 
         total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
         print("Computing throughput and effective number of tokens...")
