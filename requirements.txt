@@ -3,3 +3,4 @@ regex
 tqdm
 aim
 tomlkit
+torchinfo
