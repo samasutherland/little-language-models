@@ -93,23 +93,66 @@ def find_token_count(model, device, loader, criterion, optimizer, scheduler):
 #
 #     return min_batch
 
-def find_max_batch_size(model, dataset, available_memory, starting_size=1, safety_factor=1000000):
+# def find_max_batch_size(model, dataset, available_memory, starting_size=1, safety_factor=1000000):
+#     batch_size = starting_size
+#     model_statistics = torchinfo.summary(model, input_size=[(1, dataset.max_length,)], dtypes=[torch.long], verbose=0)
+#
+#     # total_param_bytes doubled to include .grad buffers also.
+#     fixed_size = 2*model_statistics.total_param_bytes + (2 * model_statistics.trainable_params * 2) # optimizer parameters -> 2 parameters per trainable parameter, 2bytes per parameter(bfloat16)
+#     variable_size = model_statistics.total_input + model_statistics.total_output_bytes
+#     print(f"fixed bytes: {fixed_size}")
+#     print(f"bytes per batch: {variable_size}")
+#
+#     total_size = fixed_size + (variable_size * batch_size)
+#     if total_size > (available_memory - safety_factor):
+#         raise Exception("The starting batch size is too big")
+#
+#     while total_size < (available_memory - safety_factor):
+#         batch_size *= 2
+#         total_size = fixed_size + (variable_size * batch_size)
+#
+#     return batch_size // 2
+
+def find_max_batch_size(model, dataset, device, criterion, optimizer, available_memory, starting_size=1, safety_factor=0, collate=None):
     batch_size = starting_size
-    model_statistics = torchinfo.summary(model, input_size=[(1, dataset.max_length,)], dtypes=[torch.long])
 
-    # total_param_bytes doubled to include .grad buffers also.
-    fixed_size = 2*model_statistics.total_param_bytes + (2 * model_statistics.trainable_params * 2) # optimizer parameters -> 2 parameters per trainable parameter, 2bytes per parameter(bfloat16)
-    variable_size = model_statistics.total_input + model_statistics.total_output_bytes
-    print(f"fixed bytes: {fixed_size}")
-    print(f"bytes per batch: {variable_size}")
+    torch.cuda.empty_cache()
+    torch.cuda.reset_peak_memory_stats()
+    no_data_mem_usage = torch.cuda.memory_allocated()
 
-    total_size = fixed_size + (variable_size * batch_size)
+    loader = DataLoader(dataset, batch_size=1, shuffle=True, collate_fn=collate,
+                        num_workers=0, persistent_workers=False)
+
+    batch = iter(loader).next()
+
+    x = batch["input_ids"].to(device, non_blocking=True) # Mem used by input data
+    logits = model(x[:, :-1]) # Mem used in forward pass
+    loss = criterion(logits.reshape(-1, logits.size(-1)), x[:, 1:].reshape(-1))
+    loss.backward() # Mem used in backward pass
+    optimizer.step() # Mem used by optimizer
+    optimizer.zero_grad()
+
+    # Do it a second time so that the memory usage in the forward and backward pass happens while the optimizer parameters have been allocate.d
+    logits = model(x[:, :-1]) # Mem used in forward pass
+    loss = criterion(logits.reshape(-1, logits.size(-1)), x[:, 1:].reshape(-1))
+    loss.backward() # Mem used in backward pass
+    optimizer.step() # Mem used by optimizer
+    optimizer.zero_grad()
+
+    peak_mem_usage = torch.cuda.max_memory_allocated()
+
+    delta = peak_mem_usage - no_data_mem_usage
+
+    print(f"fixed bytes: {no_data_mem_usage}")
+    print(f"bytes per batch: {delta}")
+
+    total_size = no_data_mem_usage + (delta * batch_size) # this overcounts the optimizer parameters by a factor of delta. - built in safety margin.
     if total_size > (available_memory - safety_factor):
         raise Exception("The starting batch size is too big")
 
     while total_size < (available_memory - safety_factor):
         batch_size *= 2
-        total_size = fixed_size + (variable_size * batch_size)
+        total_size = no_data_mem_usage + (delta * batch_size)
 
     return batch_size // 2
 
@@ -187,7 +230,6 @@ def main():
         dataset.end_id,
     ) + 1
     device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
-
     free_mem, total_mem = torch.cuda.memory.mem_get_info()
 
     print(f"Using {device} device")
@@ -206,10 +248,13 @@ def main():
         decay = SCHEDULER_REGISTRY[train_cfg["scheduler"]](optimizer, T_max=train_cfg["total_steps"] - train_cfg["warmup_steps"], **train_cfg["scheduler_kwargs"])
         scheduler = torch.optim.lr_scheduler.SequentialLR(optimizer, schedulers=[warmup, decay], milestones=[train_cfg["warmup_steps"]])
 
+
+
         print("finding max batch size...")
-        batch_size = find_max_batch_size(model, dataset, free_mem, starting_size=16)
+        batch_size = find_max_batch_size(model, dataset, device, criterion, optimizer, total_mem, starting_size=1, collate=collate)
         print(f"Max batch size: {batch_size}")
         train_cfg["batch_size"] = batch_size
+
         loader = DataLoader(dataset, batch_size=train_cfg["batch_size"], shuffle=True, collate_fn=collate,
                             num_workers=4, persistent_workers=False)
 
