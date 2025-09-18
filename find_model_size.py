@@ -123,7 +123,7 @@ def find_max_batch_size(model, dataset, device, criterion, optimizer, available_
     loader = DataLoader(dataset, batch_size=1, shuffle=True, collate_fn=collate,
                         num_workers=0, persistent_workers=False)
 
-    batch = iter(loader).next()
+    batch = next(iter(loader))
 
     x = batch["input_ids"].to(device, non_blocking=True) # Mem used by input data
     logits = model(x[:, :-1]) # Mem used in forward pass
