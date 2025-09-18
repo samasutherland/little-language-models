@@ -61,8 +61,7 @@ def main():
 
             run.track(loss.item(), name="loss", step=i, context={"subset": "train"})
             run.track(current_lr, name="lr", step=i, context={"subset": "train"})
-            if i % flush_freq == 0:
-                run.flush()
+
 
             print(f"Step: {i}, LR: {current_lr}, loss: {loss.item()}")
 
@@ -79,7 +78,7 @@ def main():
                 break
     finally:
         try:
-            run.flush()
+            run.finalize()
         except Exception:
             pass
         try:
