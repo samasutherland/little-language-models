@@ -113,9 +113,11 @@ def find_token_count(model, device, loader, criterion, optimizer, scheduler):
 #
 #     return batch_size // 2
 
-def find_max_batch_size(model, dataset, device, criterion, optimizer, available_memory, starting_size=1, safety_factor=0, collate=None):
+def find_max_batch_size(model, dataset, device, criterion, optimizer, starting_size=1, safety_factor=0, collate=None):
     batch_size = starting_size
 
+
+    available_memory, total_mem = torch.cuda.memory.mem_get_info()
     torch.cuda.empty_cache()
     torch.cuda.reset_peak_memory_stats()
 
@@ -239,7 +241,6 @@ def main():
         dataset.end_id,
     ) + 1
     device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
-    free_mem, total_mem = torch.cuda.memory.mem_get_info()
 
     print(f"Using {device} device")
     prev_layer_number = None
@@ -266,7 +267,7 @@ def main():
 
 
         print("finding max batch size...")
-        batch_size = find_max_batch_size(model, dataset, device, criterion, optimizer, total_mem, starting_size=1, collate=collate)
+        batch_size = find_max_batch_size(model, dataset, device, criterion, optimizer, starting_size=1, collate=collate)
         print(f"Max batch size: {batch_size}")
         train_cfg["batch_size"] = batch_size
 
