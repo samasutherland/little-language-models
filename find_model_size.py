@@ -118,7 +118,6 @@ def find_max_batch_size(model, dataset, device, criterion, optimizer, available_
 
     torch.cuda.empty_cache()
     torch.cuda.reset_peak_memory_stats()
-    no_data_mem_usage = torch.cuda.memory_allocated()
 
     loader = DataLoader(dataset, batch_size=1, shuffle=True, collate_fn=collate,
                         num_workers=0, persistent_workers=False)
@@ -132,7 +131,14 @@ def find_max_batch_size(model, dataset, device, criterion, optimizer, available_
     optimizer.step() # Mem used by optimizer
     optimizer.zero_grad()
 
-    # Do it a second time so that the memory usage in the forward and backward pass happens while the optimizer parameters have been allocate.d
+    del logits, loss, x
+    torch.cuda.synchronize()
+    gc.collect()
+
+    torch.cuda.reset_peak_memory_stats()
+    no_data_mem_usage = torch.cuda.memory_allocated()
+
+    # Do it a second time so that the memory usage in the forward and backward pass happens while the optimizer parameters have been allocated
     logits = model(x[:, :-1]) # Mem used in forward pass
     loss = criterion(logits.reshape(-1, logits.size(-1)), x[:, 1:].reshape(-1))
     loss.backward() # Mem used in backward pass
@@ -233,8 +239,14 @@ def main():
     free_mem, total_mem = torch.cuda.memory.mem_get_info()
 
     print(f"Using {device} device")
+    prev_layer_number = None
     for i in range(10):
         print(f"it {i} num_layers: {model_cfg['global']['num_layers']}")
+        if model_cfg['global']['num_layers'] == prev_layer_number:
+            print("layer number same twice in a row, breaking.")
+            break
+        prev_layer_number = model_cfg['global']['num_layers']
+
         print("creating model...")
         model = create_model(model_cfg, vocab_size, device, dataset)
         model.train()
@@ -256,7 +268,7 @@ def main():
         train_cfg["batch_size"] = batch_size
 
         loader = DataLoader(dataset, batch_size=train_cfg["batch_size"], shuffle=True, collate_fn=collate,
-                            num_workers=4, persistent_workers=False)
+                            num_workers=12, persistent_workers=False, pin_memory=True, prefetch_factor=8)
 
         total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
         print("Computing throughput and effective number of tokens...")
@@ -280,6 +292,8 @@ def main():
         model_cfg_path.write_text(dumps(model_cfg), encoding="utf-8")
         data_cfg_path.write_text(dumps(data_cfg), encoding="utf-8")
         train_cfg_path.write_text(dumps(train_cfg), encoding="utf-8")
+
+
 
 
 if __name__ == "__main__":

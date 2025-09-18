@@ -63,8 +63,8 @@ def get_data_loader(data_cfg, train_cfg):
     dataset = SimpleStoriesBPEDataset(data[data_cfg["split"]], max_length=data_cfg["max_length"])
 
     collate = partial(pad_collate_fn, pad_id=dataset.pad_id)
-    loader = DataLoader(dataset, batch_size=train_cfg["batch_size"], shuffle=True, collate_fn=collate,
-                        num_workers=4, persistent_workers=False)
+    loader = DataLoader(dataset, batch_size=train_cfg["batch_size"], shuffle=False, collate_fn=collate,
+                        num_workers=12, persistent_workers=True, pin_memory=True, prefetch_factor=8)
 
     torch.set_default_dtype(torch.bfloat16)
     vocab_size = max(
