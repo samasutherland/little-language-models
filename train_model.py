@@ -47,6 +47,7 @@ def main():
     def _handle_sigterm(signum, frame):
         stop.set()
     signal.signal(signal.SIGTERM, _handle_sigterm)
+    flush_freq = 10
     try:
         for i, batch in enumerate(loader):
             x = batch["input_ids"].to(device, non_blocking=True)
@@ -60,6 +61,8 @@ def main():
 
             run.track(loss.item(), name="loss", step=i, context={"subset": "train"})
             run.track(current_lr, name="lr", step=i, context={"subset": "train"})
+            if i % flush_freq == 0:
+                run.flush()
 
             print(f"Step: {i}, LR: {current_lr}, loss: {loss.item()}")
 
