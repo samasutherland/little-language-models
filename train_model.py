@@ -42,30 +42,47 @@ def main():
     run["param_count"] = total_params
     run["data_folder"] = os.environ["RUNPOD_POD_ID"]
 
+    import signal, threading
+    stop = threading.Event()
+    def _handle_sigterm(signum, frame):
+        stop.set()
+    signal.signal(signal.SIGTERM, _handle_sigterm)
+    try:
+        for i, batch in enumerate(loader):
+            x = batch["input_ids"].to(device, non_blocking=True)
+            logits = model(x[:, :-1])
+            loss = criterion(logits.reshape(-1, logits.size(-1)), x[:, 1:].reshape(-1))
+            loss.backward()
+            optimizer.step()
+            scheduler.step()
+            optimizer.zero_grad()
+            current_lr = scheduler.get_last_lr()[0]
+
+            run.track(loss.item(), name="loss", step=i, context={"subset": "train"})
+            run.track(current_lr, name="lr", step=i, context={"subset": "train"})
+
+            print(f"Step: {i}, LR: {current_lr}, loss: {loss.item()}")
 
 
-    for i, batch in enumerate(loader):
-        x = batch["input_ids"].to(device, non_blocking=True)
-        logits = model(x[:, :-1])
-        loss = criterion(logits.reshape(-1, logits.size(-1)), x[:, 1:].reshape(-1))
-        loss.backward()
-        optimizer.step()
-        scheduler.step()
-        optimizer.zero_grad()
-        current_lr = scheduler.get_last_lr()[0]
+            if loss.item() < best_loss:
+                best_loss = loss.item()
+                torch.save({"model": model.state_dict(), "optimizer": optimizer.state_dict(),
+                            "step": i}, os.path.join(save_dir, "ckpt_best.pt"))
+                with open(os.path.join(save_dir, "best_loss_step.txt"), "w") as f:
+                    f.write(f"loss of {best_loss} achieved on step {i}")
 
-        run.track(loss.item(), name="loss", step=i, context={"subset": "train"})
-        run.track(current_lr, name="lr", step=i, context={"subset": "train"})
-
-        print(f"Step: {i}, LR: {current_lr}, loss: {loss.item()}")
-
-
-        if loss.item() < best_loss:
-            best_loss = loss.item()
-            torch.save({"model": model.state_dict(), "optimizer": optimizer.state_dict(),
-                        "step": i}, os.path.join(save_dir, "ckpt_best.pt"))
-            with open(os.path.join(save_dir, "best_loss_step.txt"), "w") as f:
-                f.write(f"loss of {best_loss} achieved on step {i}")
+            if stop.is_set():
+                print("Received SIGTERM, finishing step and exiting cleanly...")
+                break
+    finally:
+        try:
+            run.flush()
+        except Exception:
+            pass
+        try:
+            run.close()
+        except Exception:
+            pass
 
 if __name__ == "__main__":
     import torch.multiprocessing as mp

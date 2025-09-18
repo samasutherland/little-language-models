@@ -137,6 +137,9 @@ def find_max_batch_size(model, dataset, device, criterion, optimizer, available_
 
     torch.cuda.reset_peak_memory_stats()
     no_data_mem_usage = torch.cuda.memory_allocated()
+    batch = next(iter(loader))
+
+    x = batch["input_ids"].to(device, non_blocking=True)
 
     # Do it a second time so that the memory usage in the forward and backward pass happens while the optimizer parameters have been allocated
     logits = model(x[:, :-1]) # Mem used in forward pass
