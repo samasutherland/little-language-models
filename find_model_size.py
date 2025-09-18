@@ -273,7 +273,7 @@ def main():
 
         adjust_model_parameters(target_parameter_count, model_cfg, vocab_size, device, dataset, starting_num_layers=model_cfg["global"]["num_layers"])
 
-        del model, loader, dataset, optimizer, criterion, scheduler
+        del model, loader, optimizer, criterion, scheduler
         torch.cuda.empty_cache()
         gc.collect()
 

@@ -2,3 +2,4 @@
 .idea
 checkpoints/
 **/__pycache__/
+.aim/
