@@ -49,51 +49,42 @@ def main():
         stop.set()
     signal.signal(signal.SIGTERM, _handle_sigterm)
     flush_freq = 10
-    try:
-        for i, batch in enumerate(loader):
-            x = batch["input_ids"].to(device, non_blocking=True)
-            logits = model(x[:, :-1])
-            loss = criterion(logits.reshape(-1, logits.size(-1)), x[:, 1:].reshape(-1))
-            loss.backward()
-            optimizer.step()
-            scheduler.step()
-            optimizer.zero_grad()
-            current_lr = scheduler.get_last_lr()[0]
+    for i, batch in enumerate(loader):
+        x = batch["input_ids"].to(device, non_blocking=True)
+        logits = model(x[:, :-1])
+        loss = criterion(logits.reshape(-1, logits.size(-1)), x[:, 1:].reshape(-1))
+        loss.backward()
+        optimizer.step()
+        scheduler.step()
+        optimizer.zero_grad()
+        current_lr = scheduler.get_last_lr()[0]
 
-            run.track(loss.item(), name="loss", step=i, context={"subset": "train"})
-            run.track(current_lr, name="lr", step=i, context={"subset": "train"})
-
-
-            print(f"Step: {i}, LR: {current_lr}, loss: {loss.item()}")
+        run.track(loss.item(), name="loss", step=i, context={"subset": "train"})
+        run.track(current_lr, name="lr", step=i, context={"subset": "train"})
 
 
-            if loss.item() < best_loss:
-                best_loss = loss.item()
-                torch.save({"model": model.state_dict(), "optimizer": optimizer.state_dict(),
-                            "step": i}, os.path.join(save_dir, "ckpt_best.pt"))
-                with open(os.path.join(save_dir, "best_loss_step.txt"), "w") as f:
-                    f.write(f"loss of {best_loss} achieved on step {i}")
+        print(f"Step: {i}, LR: {current_lr}, loss: {loss.item()}")
 
-            if stop.is_set():
-                print("Received SIGTERM, finishing step and exiting cleanly...")
-                break
-    finally:
-        try:
-            start = time.perf_counter()
-            run.finalize()
-            end = time.perf_counter()
-            print(f"run finalized in {end-start:.2f} seconds")
-        except Exception as e:
-            print(f"run finalization failed")
-            raise e
-        try:
-            start = time.perf_counter()
-            run.close()
-            end = time.perf_counter()
-            print(f"run closed in {end - start:.2f} seconds")
-        except Exception as e:
-            print(f"run closure failed")
-            raise e
+
+        if loss.item() < best_loss:
+            best_loss = loss.item()
+            torch.save({"model": model.state_dict(), "optimizer": optimizer.state_dict(),
+                        "step": i}, os.path.join(save_dir, "ckpt_best.pt"))
+            with open(os.path.join(save_dir, "best_loss_step.txt"), "w") as f:
+                f.write(f"loss of {best_loss} achieved on step {i}")
+
+        if stop.is_set():
+            print("Received SIGTERM, finishing step and exiting cleanly...")
+            break
+    # finally:
+    #     try:
+    #         start = time.perf_counter()
+    #         run.close()
+    #         end = time.perf_counter()
+    #         print(f"run closed in {end - start:.2f} seconds")
+    #     except Exception as e:
+    #         print(f"run closure failed")
+    #         raise e
 
 if __name__ == "__main__":
     import torch.multiprocessing as mp

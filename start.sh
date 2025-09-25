@@ -14,6 +14,8 @@ exec 2> >(tee "/workspace/experiment/stderr.log" >&2)
 timeout -k 10m 3m python3 train_model.py
 rc=$?
 echo "train_model.py exited with $rc"
+sync
+sleep 2
 
 echo "Uploading results to Google Drive..."
 
