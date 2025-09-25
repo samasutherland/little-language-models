@@ -87,4 +87,4 @@ class SimpleStoriesBPEDataset(Dataset):
             ids = ids + [self.end_id]
         if self.max_length is not None:
             ids = ids[:self.max_length]
-        return ids
+        return torch.tensor(ids, dtype=torch.long)

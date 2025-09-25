@@ -5,6 +5,7 @@ from aim import Run, Text
 import time
 import math
 import tomllib
+import uuid
 from lib.helpers import generate_sample, pad_collate_fn, load_configs, get_data_loader, create_model
 
 LOSS_REGISTRY = {"CrossEntropyLoss": torch.nn.CrossEntropyLoss}
@@ -41,7 +42,10 @@ def main():
 
     total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     run["param_count"] = total_params
-    run["data_folder"] = os.environ["RUNPOD_POD_ID"]
+    try:
+        run["data_folder"] = os.environ["RUNPOD_POD_ID"]
+    except KeyError:
+        run["data_folder"] = uuid.uuid4().hex
 
     import signal, threading
     stop = threading.Event()
