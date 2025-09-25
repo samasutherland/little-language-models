@@ -83,15 +83,17 @@ def main():
             run.finalize()
             end = time.perf_counter()
             print(f"run finalized in {end-start:.2f} seconds")
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"run finalization failed")
+            raise e
         try:
             start = time.perf_counter()
             run.close()
             end = time.perf_counter()
-            print(f"run finalized in {end - start:.2f} seconds")
-        except Exception:
-            pass
+            print(f"run closed in {end - start:.2f} seconds")
+        except Exception as e:
+            print(f"run closure failed")
+            raise e
 
 if __name__ == "__main__":
     import torch.multiprocessing as mp
