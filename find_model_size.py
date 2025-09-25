@@ -159,11 +159,11 @@ def find_max_batch_size(model, dataset, device, criterion, optimizer, starting_s
     print(f"fixed bytes: {no_data_mem_usage}")
     print(f"bytes per batch: {delta}")
 
-    total_size = no_data_mem_usage + (delta * batch_size) # this overcounts the optimizer parameters by a factor of delta. - built in safety margin.
-    if total_size > (available_memory - safety_factor):
+    total_size = no_data_mem_usage + (delta * batch_size)
+    if total_size > (available_memory - (safety_factor * total_mem)):
         raise Exception("The starting batch size is too big")
 
-    while total_size < (available_memory - safety_factor):
+    while total_size < (available_memory - (safety_factor * total_mem)):
         batch_size *= 2
         total_size = no_data_mem_usage + (delta * batch_size)
 
