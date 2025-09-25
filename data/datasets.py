@@ -1,13 +1,38 @@
 from torch.utils.data import Dataset, DataLoader
-
+import tiktoken
+import pickle
 from lib.tokenizers.raw_tokenizers import RegexBPE
 import torch
 
 class SimpleStoriesBPEDataset(Dataset):
     def __init__(self, hf_split, max_length=None, pad_id=None, end_id=None):
-        self.tok = RegexBPE()
-        self.tok.load_merge_dict("transformer/merge_dict.pickle")
-        self.tok.load_vocab("transformer/vocab.pickle")
+        # build a tiktoken Encoding from your saved pickles
+        with open("transformer/vocab.pickle", "rb") as f:
+            id2bytes = pickle.load(f)  # dict[int, bytes]
+        # merge_dict not strictly needed for tiktoken runtime, but we keep the load to mirror original behavior
+        with open("transformer/merge_dict.pickle", "rb") as f:
+            _ = pickle.load(f)
+
+        mergeable_ranks = {b: i for i, b in id2bytes.items()}
+        pat_str = r"""'(?i:[sdmt]|ll|ve|re)|[^\r\n\p{L}\p{N}]?+\p{L}+|\p{N}{1,3}| ?[^\s\p{L}\p{N}]++[\r\n]*|\s*[\r\n]|\s+(?!\S)|\s+"""
+        enc = tiktoken.Encoding(
+            name="rbpe_custom",
+            pat_str=pat_str,
+            mergeable_ranks=mergeable_ranks,
+            special_tokens={},
+        )
+
+        # lightweight wrapper to preserve .encode() and .vocab usage below
+        class _TokWrap:
+            def __init__(self, enc_, id2bytes_):
+                self._enc = enc_
+                self.vocab = id2bytes_  # keep id->bytes so max(self.tok.vocab.keys()) works
+            def encode(self, s):
+                return self._enc.encode(s)
+            def decode(self, ids):
+                return self._enc.decode(ids)
+
+        self.tok = _TokWrap(enc, id2bytes)
         self.ds = hf_split
         self.max_length = max_length
         if pad_id is None:
@@ -24,12 +49,16 @@ class SimpleStoriesBPEDataset(Dataset):
                 self.end_id = 0
         else:
             self.end_id = end_id
+
+        self.max_id = max(max(self.tok.vocab.keys(), default=-1), self.end_id, self.pad_id)
+
     def __len__(self):
         return len(self.ds)
+
     def __getitem__(self, i):
         ids = self.tok.encode(self.ds[i]["story"])
         if self.end_id is not None:
             ids = ids + [self.end_id]
         if self.max_length is not None:
             ids = ids[:self.max_length]
-        return torch.tensor(ids, dtype=torch.long)
+        return ids

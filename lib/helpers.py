@@ -67,12 +67,7 @@ def get_data_loader(data_cfg, train_cfg):
                         num_workers=12, persistent_workers=True, pin_memory=True, prefetch_factor=8)
 
     torch.set_default_dtype(torch.bfloat16)
-    vocab_size = max(
-        max(dataset.tok.vocab.keys(), default=-1),
-        max(getattr(dataset.tok, "merge_dict", {}).values(), default=-1),
-        dataset.pad_id,
-        dataset.end_id,
-    ) + 1
+    vocab_size = dataset.max_id + 1
     return dataset, loader, vocab_size
 
 def create_model(model_cfg, vocab_size, device, dataset):

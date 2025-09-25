@@ -4,3 +4,4 @@ tqdm
 aim
 tomlkit
 torchinfo
+tiktoken
