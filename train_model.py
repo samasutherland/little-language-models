@@ -2,6 +2,7 @@ import torch, os, sys
 from torch.optim.lr_scheduler import OneCycleLR, CosineAnnealingLR
 from tqdm.auto import tqdm
 from aim import Run
+import time
 import math
 import tomllib
 from lib.helpers import generate_sample, pad_collate_fn, load_configs, get_data_loader, create_model
@@ -78,11 +79,17 @@ def main():
                 break
     finally:
         try:
+            start = time.perf_counter()
             run.finalize()
+            end = time.perf_counter()
+            print(f"run finalized in {end-start:.2f} seconds")
         except Exception:
             pass
         try:
+            start = time.perf_counter()
             run.close()
+            end = time.perf_counter()
+            print(f"run finalized in {end - start:.2f} seconds")
         except Exception:
             pass
 
