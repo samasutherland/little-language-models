@@ -31,7 +31,7 @@ def find_token_count(model, device, loader, criterion, optimizer, scheduler):
             torch.cuda.synchronize()
             start_time = time.perf_counter()
 
-        token_count += torch.prod(torch.tensor(x.shape)).item()
+        token_count += x[:, 1:].numel() # torch.prod(torch.tensor(x.shape)).item()
         logits = model(x[:, :-1])
         loss = criterion(logits.reshape(-1, logits.size(-1)), x[:, 1:].reshape(-1))
         loss.backward()
@@ -113,7 +113,7 @@ def find_token_count(model, device, loader, criterion, optimizer, scheduler):
 #
 #     return batch_size // 2
 
-def find_max_batch_size(model, dataset, device, criterion, optimizer, starting_size=1, safety_factor=0.2, collate=None):
+def find_max_batch_size(model, dataset, device, criterion, optimizer, starting_size=1, safety_factor=0.4, collate=None):
     batch_size = starting_size
 
 
@@ -160,10 +160,10 @@ def find_max_batch_size(model, dataset, device, criterion, optimizer, starting_s
     print(f"bytes per batch: {delta}")
 
     total_size = no_data_mem_usage + (delta * batch_size)
-    if total_size > (available_memory - (safety_factor * total_mem)):
+    if total_size > (available_memory - (safety_factor)):
         raise Exception("The starting batch size is too big")
 
-    while total_size < (available_memory - (safety_factor * total_mem)):
+    while total_size < (available_memory - (safety_factor)):
         batch_size *= 2
         total_size = no_data_mem_usage + (delta * batch_size)
 
