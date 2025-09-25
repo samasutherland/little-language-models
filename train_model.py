@@ -1,7 +1,7 @@
 import torch, os, sys
 from torch.optim.lr_scheduler import OneCycleLR, CosineAnnealingLR
 from tqdm.auto import tqdm
-from aim import Run
+from aim import Run, Text
 import time
 import math
 import tomllib
@@ -75,6 +75,9 @@ def main():
 
         if stop.is_set():
             print("Received SIGTERM, finishing step and exiting cleanly...")
+            generated_text = generate_sample(model, dataset, device, train_cfg["test_prompt"], n_words=15, max_new_tokens=60, temperature=1.0, top_k=50,
+                            top_p=0.9)
+            run.track(Text(generated_text), name="lr", step=i, context={"subset": "train"})
             break
     # finally:
     #     try:

@@ -11,7 +11,7 @@ exec > >(tee "/workspace/experiment/stdout.log")
 exec 2> >(tee "/workspace/experiment/stderr.log" >&2)
 
 #python3 find_model_size.py
-timeout -k 120s 30m python3 train_model.py
+timeout -k 10m 30m python3 train_model.py
 rc=$?
 echo "train_model.py exited with $rc"
 sync
