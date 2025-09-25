@@ -219,6 +219,50 @@ def adjust_model_parameters(target_parameter_count, model_cfg, vocab_size, devic
         model_cfg["attention"]["n_heads"] = min_layers
 
 
+def find_param_token_ratio(num_layers, model_cfg, vocab_size, device, dataset, train_cfg, collate, ):
+    print("creating model...")
+    model_cfg["global"]["num_layers"] = num_layers
+    model_cfg["global"]["embedding_dim"] = num_layers * 128
+    model_cfg["global"]["feedforward_dim"] = num_layers * 128 * 4
+    model_cfg["attention"]["n_heads"] = num_layers
+    model = create_model(model_cfg, vocab_size, device, dataset)
+    model.train()
+    print("model created.")
+
+    # Define training params
+    criterion = LOSS_REGISTRY[train_cfg["loss"]](ignore_index=dataset.pad_id)
+    optimizer = OPTIMIZER_REGISTRY[train_cfg["optimizer"]](model.parameters(), lr=train_cfg["base_lr"])
+
+    warmup = torch.optim.lr_scheduler.LinearLR(optimizer, total_iters=train_cfg["warmup_steps"])
+    decay = SCHEDULER_REGISTRY[train_cfg["scheduler"]](optimizer,
+                                                       T_max=train_cfg["total_steps"] - train_cfg["warmup_steps"],
+                                                       **train_cfg["scheduler_kwargs"])
+    scheduler = torch.optim.lr_scheduler.SequentialLR(optimizer, schedulers=[warmup, decay],
+                                                      milestones=[train_cfg["warmup_steps"]])
+
+    print("finding max batch size...")
+    batch_size = find_max_batch_size(model, dataset, device, criterion, optimizer, starting_size=1, collate=collate)
+    print(f"Max batch size: {batch_size}")
+    train_cfg["batch_size"] = batch_size
+
+    loader = DataLoader(dataset, batch_size=train_cfg["batch_size"], shuffle=True, collate_fn=collate,
+                        num_workers=12, persistent_workers=False, pin_memory=True, prefetch_factor=8)
+
+    total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print("Computing throughput and effective number of tokens...")
+    total_tokens, total_steps = find_token_count(model, device, loader, criterion, optimizer, scheduler)
+
+    train_cfg["total_steps"] = total_steps
+
+    print(
+        f"Total tokens: {total_tokens}, total params: {total_params}, ratio: {total_tokens / total_params} (target 20)")
+
+    del model, loader, optimizer, criterion, scheduler
+    torch.cuda.empty_cache()
+    gc.collect()
+
+    return total_tokens / total_params
+
 def main():
     print("loading configs...")
     model_cfg_path = Path("experiment/model.toml")
@@ -245,59 +289,32 @@ def main():
     device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
 
     print(f"Using {device} device")
-    prev_layer_number = None
-    for i in range(10):
-        print(f"it {i} num_layers: {model_cfg['global']['num_layers']}")
-        if model_cfg['global']['num_layers'] == prev_layer_number:
-            print("layer number same twice in a row, breaking.")
-            break
-        prev_layer_number = model_cfg['global']['num_layers']
 
-        print("creating model...")
-        model = create_model(model_cfg, vocab_size, device, dataset)
-        model.train()
-        print("model created.")
+    num_layers = 1
 
-        # Define training params
-        criterion = LOSS_REGISTRY[train_cfg["loss"]](ignore_index=dataset.pad_id)
-        optimizer = OPTIMIZER_REGISTRY[train_cfg["optimizer"]](model.parameters(), lr=train_cfg["base_lr"])
+    while find_param_token_ratio(num_layers, model_cfg, vocab_size, device, dataset, train_cfg, collate) < 20:
+        num_layers = num_layers * 2
 
-        warmup = torch.optim.lr_scheduler.LinearLR(optimizer, total_iters=train_cfg["warmup_steps"])
-        decay = SCHEDULER_REGISTRY[train_cfg["scheduler"]](optimizer, T_max=train_cfg["total_steps"] - train_cfg["warmup_steps"], **train_cfg["scheduler_kwargs"])
-        scheduler = torch.optim.lr_scheduler.SequentialLR(optimizer, schedulers=[warmup, decay], milestones=[train_cfg["warmup_steps"]])
+    upper_bound = num_layers
+    lower_bound = num_layers // 2
 
 
-
-        print("finding max batch size...")
-        batch_size = find_max_batch_size(model, dataset, device, criterion, optimizer, starting_size=1, collate=collate)
-        print(f"Max batch size: {batch_size}")
-        train_cfg["batch_size"] = batch_size
-
-        loader = DataLoader(dataset, batch_size=train_cfg["batch_size"], shuffle=True, collate_fn=collate,
-                            num_workers=12, persistent_workers=False, pin_memory=True, prefetch_factor=8)
-
-        total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-        print("Computing throughput and effective number of tokens...")
-        total_tokens, total_steps = find_token_count(model, device, loader, criterion, optimizer, scheduler)
-
-        train_cfg["total_steps"] = total_steps
-
-        print(f"Total tokens: {total_tokens}, total params: {total_params}, ratio: {total_tokens / total_params} (target 20)")
-
-        if abs((total_tokens / total_params) - 20) < 2: # target is 20 tokens per parameter
+    while upper_bound - lower_bound > 1:
+        print(f"Current range: {lower_bound}-{upper_bound}")
+        num_layers = lower_bound + (upper_bound - lower_bound) // 2
+        ratio = find_param_token_ratio(num_layers, model_cfg, vocab_size, device, dataset, train_cfg, collate)
+        if ratio < 20:
+            lower_bound = num_layers
+        elif ratio > 20:
+            upper_bound = num_layers
+        else:
             break
 
-        target_parameter_count = total_tokens // 20
+    find_param_token_ratio(upper_bound, model_cfg, vocab_size, device, dataset, train_cfg, collate) # choose higher end of parameter count
 
-        adjust_model_parameters(target_parameter_count, model_cfg, vocab_size, device, dataset, starting_num_layers=model_cfg["global"]["num_layers"])
-
-        del model, loader, optimizer, criterion, scheduler
-        torch.cuda.empty_cache()
-        gc.collect()
-
-        model_cfg_path.write_text(dumps(model_cfg), encoding="utf-8")
-        data_cfg_path.write_text(dumps(data_cfg), encoding="utf-8")
-        train_cfg_path.write_text(dumps(train_cfg), encoding="utf-8")
+    model_cfg_path.write_text(dumps(model_cfg), encoding="utf-8")
+    data_cfg_path.write_text(dumps(data_cfg), encoding="utf-8")
+    train_cfg_path.write_text(dumps(train_cfg), encoding="utf-8")
 
 
 
