@@ -3,7 +3,7 @@
 model = "Transformer"
 
 [global]
-num_layers = 32
+num_layers = 40
 embedding_dim = 768
 feedforward_dim = 3072
 max_context = 512
