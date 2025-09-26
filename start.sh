@@ -10,7 +10,7 @@ fi
 exec > >(tee "/workspace/experiment/stdout.log")
 exec 2> >(tee "/workspace/experiment/stderr.log" >&2)
 
-python3 find_model_size.py
+python3 find_batch_size_and_step_number.py
 timeout -k 10m 30m python3 train_model.py
 rc=$?
 echo "train_model.py exited with $rc"

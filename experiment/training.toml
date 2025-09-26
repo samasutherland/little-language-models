@@ -7,7 +7,7 @@ test_prompt = "The dog"
 base_lr = 1e-4
 total_steps = 5000
 
-scheduler = "Cosine"
+scheduler = "OneCycleLR"
 warmup_steps = 50
 
 [scheduler_kwargs]

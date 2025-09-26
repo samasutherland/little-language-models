@@ -29,9 +29,11 @@ def main():
     os.makedirs(save_dir, exist_ok=True)
     best_loss = float("inf")
 
-    warmup = torch.optim.lr_scheduler.LinearLR(optimizer, total_iters=train_cfg["warmup_steps"])
-    decay = SCHEDULER_REGISTRY[train_cfg["scheduler"]](optimizer, T_max=train_cfg["total_steps"] - train_cfg["warmup_steps"], **train_cfg["scheduler_kwargs"])
-    scheduler = torch.optim.lr_scheduler.SequentialLR(optimizer, schedulers=[warmup, decay], milestones=[train_cfg["warmup_steps"]])
+    # warmup = torch.optim.lr_scheduler.LinearLR(optimizer, total_iters=train_cfg["warmup_steps"])
+    # decay = SCHEDULER_REGISTRY[train_cfg["scheduler"]](optimizer, T_max=train_cfg["total_steps"] - train_cfg["warmup_steps"], **train_cfg["scheduler_kwargs"])
+    # scheduler = torch.optim.lr_scheduler.SequentialLR(optimizer, schedulers=[warmup, decay], milestones=[train_cfg["warmup_steps"]])
+
+    scheduler = SCHEDULER_REGISTRY[train_cfg["scheduler"]](optimizer, max_lr=train_cfg["base_lr"], total_steps=train_cfg["total_steps"])
 
     experiment_name = "deepseek_transformer" if model_cfg["attention"]["project_kv"] else "dense_transformer"
 
@@ -52,9 +54,10 @@ def main():
     def _handle_sigterm(signum, frame):
         stop.set()
     signal.signal(signal.SIGTERM, _handle_sigterm)
-    flush_freq = 10
+    token_count = 0
     for i, batch in enumerate(loader):
         x = batch["input_ids"].to(device, non_blocking=True)
+        token_count += x[:, 1:].numel()
         logits = model(x[:, :-1])
         loss = criterion(logits.reshape(-1, logits.size(-1)), x[:, 1:].reshape(-1))
         loss.backward()
@@ -79,10 +82,13 @@ def main():
 
         if stop.is_set():
             print("Received SIGTERM, finishing step and exiting cleanly...")
-            generated_text = generate_sample(model, dataset, device, train_cfg["test_prompt"], n_words=15, max_new_tokens=60, temperature=1.0, top_k=50,
-                            top_p=0.9)
-            run.track(Text(generated_text), name="lr", step=i, context={"subset": "train"})
+
             break
+    generated_text = generate_sample(model, dataset, device, train_cfg["test_prompt"], n_words=20, max_new_tokens=100,
+                                     temperature=1.0, top_k=50,
+                                     top_p=0.9)
+    run.track(Text(generated_text), name="lr", step=i, context={"subset": "train"})
+    run["param_count"] = total_params
     # finally:
     #     try:
     #         start = time.perf_counter()

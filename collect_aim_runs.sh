@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
-if [ ! -d ".aim" ]; then
-  aim init
-fi
+aim init
 DEST="$(pwd)"
 
-for d in ./aim_repos/*;
-do
+for d in ./aim_repos/*; do
   td=$(mktemp -d)
-  if [ -d "$d" ]; then
-    mv "$d" "$td/.aim"
+  if [ -d "$d" ] && compgen -G "$d"/*.tar.gz > /dev/null; then
+    tar -C "$td" -xzf "$(ls -1 "$d"/*.tar.gz | head -n1)"
     (cd "$td" && aim runs cp '*' --destination "$DEST")
-    mv "$td/.aim" "$d"
     rmdir "$td"
+  elif [ -d "$d/.aim" ]; then
+    cp -a "$d/.aim" "$td/.aim"
+    (cd "$td" && aim runs cp '*' --destination "$DEST")
+    rm -rf "$td"
   elif [ -f "$d" ] && [[ "$d" == *.tar.gz ]]; then
     tar -C "$td" -xzf "$d"
     (cd "$td" && aim runs cp '*' --destination "$DEST")
