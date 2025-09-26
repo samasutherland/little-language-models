@@ -11,7 +11,7 @@ activation = "GELU"
 
 [attention]
 n_heads=6
-project_kv = false
+project_kv = true
 projection_dim = 256
 qk_dim = 128
 v_dim = 128

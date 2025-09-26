@@ -14,7 +14,7 @@ from data.datasets import SimpleStoriesBPEDataset
 from datasets import load_dataset
 
 LOSS_REGISTRY = {"CrossEntropyLoss": torch.nn.CrossEntropyLoss}
-OPTIMIZER_REGISTRY = {"Adam": torch.optim.Adam, "SGD": torch.optim.SGD}
+OPTIMIZER_REGISTRY = {"Adam": torch.optim.Adam, "SGD": torch.optim.SGD, "AdamW": torch.optim.AdamW}
 SCHEDULER_REGISTRY = {"OneCycleLR": OneCycleLR, "Cosine": CosineAnnealingLR}
 
 def find_token_count(model, device, loader, criterion, optimizer, scheduler):
