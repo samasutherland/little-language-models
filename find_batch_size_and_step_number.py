@@ -117,12 +117,14 @@ def find_param_token_ratio(model_cfg, vocab_size, device, dataset, train_cfg, co
     criterion = LOSS_REGISTRY[train_cfg["loss"]](ignore_index=dataset.pad_id)
     optimizer = OPTIMIZER_REGISTRY[train_cfg["optimizer"]](model.parameters(), lr=train_cfg["base_lr"])
 
-    warmup = torch.optim.lr_scheduler.LinearLR(optimizer, total_iters=train_cfg["warmup_steps"])
-    decay = SCHEDULER_REGISTRY[train_cfg["scheduler"]](optimizer,
-                                                       T_max=train_cfg["total_steps"] - train_cfg["warmup_steps"],
-                                                       **train_cfg["scheduler_kwargs"])
-    scheduler = torch.optim.lr_scheduler.SequentialLR(optimizer, schedulers=[warmup, decay],
-                                                      milestones=[train_cfg["warmup_steps"]])
+    # warmup = torch.optim.lr_scheduler.LinearLR(optimizer, total_iters=train_cfg["warmup_steps"])
+    # decay = SCHEDULER_REGISTRY[train_cfg["scheduler"]](optimizer,
+    #                                                    T_max=train_cfg["total_steps"] - train_cfg["warmup_steps"],
+    #                                                    **train_cfg["scheduler_kwargs"])
+    # scheduler = torch.optim.lr_scheduler.SequentialLR(optimizer, schedulers=[warmup, decay],
+    #                                                   milestones=[train_cfg["warmup_steps"]])
+    scheduler = SCHEDULER_REGISTRY[train_cfg["scheduler"]](optimizer, max_lr=train_cfg["base_lr"],
+                                                           total_steps=train_cfg["total_steps"])
 
     print("finding max batch size...")
     batch_size = find_max_batch_size(model, dataset, device, criterion, optimizer, starting_size=1, collate=collate)
