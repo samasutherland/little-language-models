@@ -2,7 +2,7 @@
 
 batch_size = 32
 loss = "CrossEntropyLoss"
-optimizer = "Adam"
+optimizer = "AdamW"
 test_prompt = "The dog"
 base_lr = 1e-4
 total_steps = 5000
