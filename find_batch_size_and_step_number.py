@@ -47,7 +47,7 @@ def find_token_count(model, device, loader, criterion, optimizer, scheduler):
     number_of_steps = int((total_steps - step_timer_trigger) * 1800 / (end_time - start_time))
     return total_tokens, number_of_steps
 
-def find_max_batch_size(model, dataset, device, criterion, optimizer, starting_size=1, safety_factor=0.4, collate=None):
+def find_max_batch_size(model, dataset, device, criterion, optimizer, starting_size=1, safety_factor=0.2, collate=None):
     batch_size = starting_size
 
 

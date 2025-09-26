@@ -23,17 +23,21 @@ def main():
 
     # Define training params
     criterion = LOSS_REGISTRY[train_cfg["loss"]](ignore_index=dataset.pad_id)
-    optimizer = OPTIMIZER_REGISTRY[train_cfg["optimizer"]](model.parameters(), lr=train_cfg["base_lr"])
+
 
     save_dir = "experiment/checkpoints"
     os.makedirs(save_dir, exist_ok=True)
     best_loss = float("inf")
 
+    # optimizer = OPTIMIZER_REGISTRY[train_cfg["optimizer"]](model.parameters(), lr=train_cfg["base_lr"])
     # warmup = torch.optim.lr_scheduler.LinearLR(optimizer, total_iters=train_cfg["warmup_steps"])
     # decay = SCHEDULER_REGISTRY[train_cfg["scheduler"]](optimizer, T_max=train_cfg["total_steps"] - train_cfg["warmup_steps"], **train_cfg["scheduler_kwargs"])
     # scheduler = torch.optim.lr_scheduler.SequentialLR(optimizer, schedulers=[warmup, decay], milestones=[train_cfg["warmup_steps"]])
 
-    scheduler = SCHEDULER_REGISTRY[train_cfg["scheduler"]](optimizer, max_lr=train_cfg["base_lr"], total_steps=train_cfg["total_steps"])
+    optimizer = OPTIMIZER_REGISTRY[train_cfg["optimizer"]](model.parameters(), lr=1)
+    peak_frac = train_cfg["warmup_steps"] / train_cfg["total_steps"]
+    print(f"peak_frac: {peak_frac}")
+    scheduler = SCHEDULER_REGISTRY[train_cfg["scheduler"]](optimizer, max_lr=train_cfg["base_lr"], total_steps=train_cfg["total_steps"], pct_start=peak_frac, div_factor=3., final_div_factor=10.)
 
     experiment_name = "deepseek_transformer" if model_cfg["attention"]["project_kv"] else "dense_transformer"
 
@@ -87,7 +91,9 @@ def main():
     generated_text = generate_sample(model, dataset, device, train_cfg["test_prompt"], n_words=20, max_new_tokens=100,
                                      temperature=1.0, top_k=50,
                                      top_p=0.9)
-    run.track(Text(generated_text), name="generated_text", step=i, context={"subset": "train"})
+    print(generated_text)
+    run.track(Text(generated_text), name="generated_text")
+    run["Final_text_generation"] = generated_text
     run["token_count"] = total_params
     # finally:
     #     try:
