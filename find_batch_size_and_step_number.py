@@ -178,7 +178,7 @@ def main():
 
     train_ratio = find_param_token_ratio(model_cfg, vocab_size, device, dataset, train_cfg, collate)
 
-    print(f"training on {train_ratio:.2f}% tokens per parameter.")
+    print(f"training on {train_ratio:.2f} tokens per parameter.")
 
     model_cfg_path.write_text(dumps(model_cfg), encoding="utf-8")
     data_cfg_path.write_text(dumps(data_cfg), encoding="utf-8")
