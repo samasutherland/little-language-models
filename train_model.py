@@ -87,8 +87,8 @@ def main():
     generated_text = generate_sample(model, dataset, device, train_cfg["test_prompt"], n_words=20, max_new_tokens=100,
                                      temperature=1.0, top_k=50,
                                      top_p=0.9)
-    run.track(Text(generated_text), name="lr", step=i, context={"subset": "train"})
-    run["param_count"] = total_params
+    run.track(Text(generated_text), name="generated_text", step=i, context={"subset": "train"})
+    run["token_count"] = total_params
     # finally:
     #     try:
     #         start = time.perf_counter()
