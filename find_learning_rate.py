@@ -63,7 +63,7 @@ if train_steps < train_cfg["warmup_steps"] * 2:
 # First scale batch size by 2 until OOM
 print("finding max learning rate...")
 min = -5
-max = -2
+max = -3
 lrs = torch.logspace(min, max, 5)
 
 losses = []
@@ -81,8 +81,11 @@ for lr in lrs:
     losses.append(loss)
     print(f"lr {lr} achieved loss {loss}")
 
-losses = torch.tensor(losses)
-best_lr = lrs[losses.argmin()]
+losses = torch.tensor(losses, dtype=torch.float32)
+mask = torch.isfinite(losses)
+if not torch.any(mask):
+    raise RuntimeError("All LR trials produced non-finite losses.")
+best_lr = lrs[torch.where(mask)[0][torch.argmin(losses[mask])].item()]
 
 print(f"Best learning rate: {best_lr}")
 train_cfg["base_lr"] = best_lr
