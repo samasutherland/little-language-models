@@ -41,24 +41,22 @@ vocab_size = max(
     dataset.end_id,
 ) + 1
 device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
-model = create_model(model_cfg, vocab_size, device, dataset)
 
 print(f"Using {device} device")
 
 
 # Define training params
 criterion = LOSS_REGISTRY[train_cfg["loss"]](ignore_index=dataset.pad_id)
-optimizer = OPTIMIZER_REGISTRY[train_cfg["optimizer"]](model.parameters(), lr=train_cfg["base_lr"])
+
 
 peak_frac = train_cfg["warmup_steps"] / train_cfg["total_steps"]
 print(f"peak_frac: {peak_frac}")
-loader = DataLoader(dataset, batch_size=train_cfg["batch_size"], shuffle=True, collate_fn=collate,
-                        num_workers=8, persistent_workers=False)
 # spend 5 min finding lr:
 # Total steps takes 30 min
-# Each lr gets 30 secs
+# Each lr gets 60 secs
 
-train_steps = train_cfg["total_steps"] // 60
+train_steps = train_cfg["total_steps"] // 30
+print(f"train_steps: {train_steps}, warmup_steps: {train_cfg['warmup_steps']}")
 if train_steps < train_cfg["warmup_steps"] * 2:
     print("train steps less than half warmup steps - inaccurate results to follow!")
 
@@ -66,11 +64,16 @@ if train_steps < train_cfg["warmup_steps"] * 2:
 print("finding max learning rate...")
 min = -5
 max = -2
-lrs = torch.logspace(min, max, 10)
+lrs = torch.logspace(min, max, 5)
 
 losses = []
 
 for lr in lrs:
+    torch.manual_seed(0)
+    model = create_model(model_cfg, vocab_size, device, dataset)
+    loader = DataLoader(dataset, batch_size=train_cfg["batch_size"], shuffle=False, collate_fn=collate,
+                        num_workers=8, persistent_workers=False)
+    optimizer = OPTIMIZER_REGISTRY[train_cfg["optimizer"]](model.parameters(), lr=lr)
     scheduler = SCHEDULER_REGISTRY[train_cfg["scheduler"]](optimizer, max_lr=lr,
                                                            total_steps=train_cfg["total_steps"], pct_start=peak_frac,
                                                            div_factor=3., final_div_factor=10.)

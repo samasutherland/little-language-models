@@ -106,7 +106,6 @@ def get_step_info(model, device, loader, criterion, optimizer, scheduler, timer_
             break
     # torch.cuda.synchronize()
     end_time = time.perf_counter()
-    print("finished finding token count")
     tokens_per_step = x[:, 1:].numel()
     time_per_step = (end_time - start_time)/(total_steps - timer_start)
     return time_per_step, tokens_per_step, loss.item()
