@@ -51,9 +51,6 @@ criterion = LOSS_REGISTRY[train_cfg["loss"]](ignore_index=dataset.pad_id)
 
 peak_frac = train_cfg["warmup_steps"] / train_cfg["total_steps"]
 print(f"peak_frac: {peak_frac}")
-# spend 5 min finding lr:
-# Total steps takes 30 min
-# Each lr gets 60 secs
 
 train_steps = train_cfg["total_steps"] // 30
 print(f"train_steps: {train_steps}, warmup_steps: {train_cfg['warmup_steps']}")
@@ -61,10 +58,10 @@ if train_steps < train_cfg["warmup_steps"] * 2:
     print("train steps less than half warmup steps - inaccurate results to follow!")
 
 # First scale batch size by 2 until OOM
-print("finding max learning rate...")
+print("finding best learning rate...")
 min = -5
-max = -3
-lrs = torch.logspace(min, max, 5)
+max = -2
+lrs = torch.logspace(min, max, 7)
 
 losses = []
 
@@ -85,7 +82,7 @@ losses = torch.tensor(losses, dtype=torch.float32)
 mask = torch.isfinite(losses)
 if not torch.any(mask):
     raise RuntimeError("All LR trials produced non-finite losses.")
-best_lr = lrs[torch.where(mask)[0][torch.argmin(losses[mask])].item()]
+best_lr = float(lrs[torch.where(mask)[0][torch.argmin(losses[mask])].item()].item())
 
 print(f"Best learning rate: {best_lr}")
 train_cfg["base_lr"] = best_lr
