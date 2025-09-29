@@ -59,10 +59,10 @@ def main():
                         num_workers=8, persistent_workers=False)
     time_per_step, tokens_per_step, loss = get_step_info(model, device, loader, criterion, optimizer, scheduler, timer_start=10, total_steps=110)
 
-    total_steps = (30 * 60) / time_per_step
+    total_steps = int((30 * 60) / time_per_step)
     total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     total_tokens = int(tokens_per_step * total_steps)
-    print(f"Estimated total steps: {total_steps}\n Estimated total tokens: {total_tokens} (tokens/param: {total_tokens / total_params}:.2f)")
+    print(f"Estimated total steps: {total_steps}\n Estimated total tokens: {total_tokens} (tokens/param: {total_tokens / total_params:.2f})")
 
     train_cfg["total_steps"] = total_steps
     train_cfg["warmup_steps"] = max(10, total_steps // 100) # 1% of time in warmup

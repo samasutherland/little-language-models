@@ -90,6 +90,7 @@ while upper_bound - lower_bound > 1:
 
 print(f"Final batch size: {lower_bound}")
 train_cfg["batch_size"] = lower_bound
+
 train_cfg_path.write_text(dumps(train_cfg), encoding="utf-8")
 
 
