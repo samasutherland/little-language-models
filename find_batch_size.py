@@ -82,12 +82,14 @@ while upper_bound - lower_bound > 1:
         flag = False
 
     if flag:
+        print(f"Batch size {trial} passed")
         lower_bound = trial
     else:
+        print(f"Batch size {trial} caused OOM")
         upper_bound = trial
 
 print(f"Final batch size: {lower_bound}")
-train_cfg["batch_size"] = batch_size
+train_cfg["batch_size"] = lower_bound
 train_cfg_path.write_text(dumps(train_cfg), encoding="utf-8")
 
 
