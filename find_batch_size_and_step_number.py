@@ -17,59 +17,15 @@ LOSS_REGISTRY = {"CrossEntropyLoss": torch.nn.CrossEntropyLoss}
 OPTIMIZER_REGISTRY = {"Adam": torch.optim.Adam, "SGD": torch.optim.SGD, "AdamW": torch.optim.AdamW}
 SCHEDULER_REGISTRY = {"OneCycleLR": OneCycleLR, "Cosine": CosineAnnealingLR}
 
-def find_token_count(model, device, loader, criterion, optimizer, scheduler):
-    step_timer_trigger = 5
-    total_steps = 15
-    token_count = 0
-
-
-    for i, batch in enumerate(tqdm(loader, leave=True, desc="Finding Token Count")):
-        x = batch["input_ids"].to(device=device, non_blocking=True)
-
-        if i == step_timer_trigger:
-            token_count = 0
-            torch.cuda.synchronize()
-            start_time = time.perf_counter()
-
-        token_count += x[:, 1:].numel() # torch.prod(torch.tensor(x.shape)).item()
-        logits = model(x[:, :-1])
-        loss = criterion(logits.reshape(-1, logits.size(-1)), x[:, 1:].reshape(-1))
-        loss.backward()
-        optimizer.step()
-        scheduler.step()
-        optimizer.zero_grad()
-        if i == total_steps - 1:
-            break
-    torch.cuda.synchronize()
-    end_time = time.perf_counter()
-    print("finished finding token count")
-    total_tokens = token_count * 1800 / (end_time - start_time) # number of tokens in 30 min
-    number_of_steps = int((total_steps - step_timer_trigger) * 1800 / (end_time - start_time))
-    return total_tokens, number_of_steps
 
 def find_max_batch_size(model, dataset, device, criterion, optimizer, starting_size=1, safety_factor=0.2, collate=None):
     batch_size = starting_size
 
-
-    available_memory, total_mem = torch.cuda.memory.mem_get_info()
-    torch.cuda.empty_cache()
-    torch.cuda.reset_peak_memory_stats()
-
-    safety_factor = int(safety_factor * available_memory)
-
     loader = DataLoader(dataset, batch_size=1, shuffle=True, collate_fn=collate,
                         num_workers=0, persistent_workers=False)
 
-    batch = next(iter(loader))
 
-    x = batch["input_ids"].to(device, non_blocking=True) # Mem used by input data
-    logits = model(x[:, :-1]) # Mem used in forward pass
-    loss = criterion(logits.reshape(-1, logits.size(-1)), x[:, 1:].reshape(-1))
-    loss.backward() # Mem used in backward pass
-    optimizer.step() # Mem used by optimizer
-    optimizer.zero_grad()
-
-    del logits, loss, x
+    del loader, logits, loss, x
     torch.cuda.synchronize()
     gc.collect()
 

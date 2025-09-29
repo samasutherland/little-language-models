@@ -94,7 +94,9 @@ def main():
     print(generated_text)
     run.track(Text(generated_text), name="generated_text")
     run["Final_text_generation"] = generated_text
-    run["token_count"] = total_params
+    run["token_count"] = token_count
+    total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    run["tokens_per_parameter"] = total_params / token_count
     # finally:
     #     try:
     #         start = time.perf_counter()

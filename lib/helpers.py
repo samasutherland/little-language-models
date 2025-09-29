@@ -4,6 +4,7 @@ from torch.utils.data import DataLoader
 from functools import partial
 from data.datasets import SimpleStoriesBPEDataset
 from lib.models import MODEL_REGISTRY
+import time
 
 import tomllib
 
@@ -80,4 +81,35 @@ def create_model(model_cfg, vocab_size, device, dataset):
     model.embedding.weight.data = model.embedding.weight.data.to(torch.bfloat16)
     model.embedding.padding_idx = dataset.pad_id
     return model
+
+def get_step_info(model, device, loader, criterion, optimizer, scheduler, timer_start=5, total_steps=10):
+    token_count = 0
+
+    assert timer_start < total_steps
+    assert total_steps > 0
+
+
+    for i, batch in enumerate(loader):
+        x = batch["input_ids"].to(device=device, non_blocking=True)
+
+        if i == timer_start:
+            # torch.cuda.synchronize()
+            start_time = time.perf_counter()
+
+        logits = model(x[:, :-1])
+        loss = criterion(logits.reshape(-1, logits.size(-1)), x[:, 1:].reshape(-1))
+        loss.backward()
+        optimizer.step()
+        scheduler.step()
+        optimizer.zero_grad()
+        if i == total_steps - 1:
+            break
+    # torch.cuda.synchronize()
+    end_time = time.perf_counter()
+    print("finished finding token count")
+    tokens_per_step = x[:, 1:].numel()
+    time_per_step = (end_time - start_time)/(total_steps - timer_start)
+    return time_per_step, tokens_per_step, loss.item()
+
+
 
