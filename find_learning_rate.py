@@ -68,7 +68,7 @@ losses = []
 for lr in lrs:
     torch.manual_seed(0)
     model = create_model(model_cfg, vocab_size, device, dataset)
-    loader = DataLoader(dataset, batch_size=train_cfg["batch_size"], shuffle=False, collate_fn=collate,
+    loader = DataLoader(dataset, batch_size=train_cfg["batch_size"], shuffle=True, collate_fn=collate,
                         num_workers=8, persistent_workers=False)
     optimizer = OPTIMIZER_REGISTRY[train_cfg["optimizer"]](model.parameters(), lr=lr)
     scheduler = SCHEDULER_REGISTRY[train_cfg["scheduler"]](optimizer, max_lr=lr,
@@ -82,7 +82,7 @@ losses = torch.tensor(losses, dtype=torch.float32)
 mask = torch.isfinite(losses)
 if not torch.any(mask):
     raise RuntimeError("All LR trials produced non-finite losses.")
-best_lr = float(lrs[torch.where(mask)[0][torch.argmin(losses[mask])].item()].item())
+best_lr = float(lrs[torch.where(mask)[0][torch.argmin(losses[mask]) - 1].item()].item()) # Take the learning rate one smaller than the best one - plateau is long and want to avoid spikes.
 
 print(f"Best learning rate: {best_lr}")
 train_cfg["base_lr"] = best_lr

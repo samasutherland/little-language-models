@@ -11,6 +11,7 @@ from lib.helpers import generate_sample, pad_collate_fn, load_configs, get_data_
 LOSS_REGISTRY = {"CrossEntropyLoss": torch.nn.CrossEntropyLoss}
 OPTIMIZER_REGISTRY = {"Adam": torch.optim.Adam, "SGD": torch.optim.SGD, "AdamW": torch.optim.AdamW}
 SCHEDULER_REGISTRY = {"OneCycleLR": OneCycleLR, "Cosine": CosineAnnealingLR}
+torch.manual_seed(0)
 
 def main():
     device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
@@ -88,15 +89,19 @@ def main():
             print("Received SIGTERM, finishing step and exiting cleanly...")
 
             break
-    generated_text = generate_sample(model, dataset, device, train_cfg["test_prompt"], n_words=20, max_new_tokens=100,
-                                     temperature=1.0, top_k=50,
-                                     top_p=0.9)
-    print(generated_text)
-    run.track(Text(generated_text), name="generated_text")
-    run["Final_text_generation"] = generated_text
+
+    print("storing token_count and tokens per parameter...")
     run["token_count"] = token_count
     total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     run["tokens_per_parameter"] = total_params / token_count
+
+    print("Generating sample...")
+    generated_text = generate_sample(model, dataset, device, train_cfg["test_prompt"], n_words=20, max_new_tokens=100,
+                                     temperature=1.0, top_k=50,
+                                     top_p=0.9)
+    run["final_text_generation"] = generated_text
+    print(generated_text)
+    run.close()
     # finally:
     #     try:
     #         start = time.perf_counter()
