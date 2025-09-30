@@ -86,6 +86,7 @@ def main():
                         "step": i}, os.path.join(save_dir, "ckpt_best.pt"))
             with open(os.path.join(save_dir, "best_loss_step.txt"), "w") as f:
                 f.write(f"loss of {best_loss} achieved on step {i}")
+        run.track(best_loss, name="best_loss", step=i, context={"subset": "train"})
 
         if stop.is_set():
             print("Received SIGTERM, finishing step and exiting cleanly...")
