@@ -97,12 +97,14 @@ def main():
     run["token_count"] = token_count
     total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     run["tokens_per_parameter"] = total_params / token_count
+    run["best_loss"] = best_loss
 
     print("Generating sample...")
     generated_text = generate_sample(model, dataset, device, train_cfg["test_prompt"], n_words=20, max_new_tokens=100,
                                      temperature=1.0, top_k=50,
                                      top_p=0.9)
     run["final_text_generation"] = generated_text
+
     print(generated_text)
     run.close()
     # finally:
