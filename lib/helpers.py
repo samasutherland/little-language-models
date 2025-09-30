@@ -100,6 +100,7 @@ def get_step_info(model, device, loader, criterion, optimizer, scheduler, timer_
         logits = model(x[:, :-1])
         loss = criterion(logits.reshape(-1, logits.size(-1)), x[:, 1:].reshape(-1))
         loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         optimizer.step()
         scheduler.step()
         optimizer.zero_grad()

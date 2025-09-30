@@ -43,6 +43,7 @@ vocab_size = max(
 ) + 1
 device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
 model = create_model(model_cfg, vocab_size, device, dataset)
+model.compile()
 
 print(f"Using {device} device")
 

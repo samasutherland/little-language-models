@@ -20,6 +20,7 @@ def main():
     model_cfg, data_cfg, train_cfg = load_configs()
     dataset, loader, vocab_size = get_data_loader(data_cfg, train_cfg)
     model = create_model(model_cfg, vocab_size, device, dataset)
+    model.compile()
     model.train()
 
     # Define training params
@@ -66,12 +67,14 @@ def main():
         logits = model(x[:, :-1])
         loss = criterion(logits.reshape(-1, logits.size(-1)), x[:, 1:].reshape(-1))
         loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         optimizer.step()
         scheduler.step()
         optimizer.zero_grad()
         current_lr = scheduler.get_last_lr()[0]
 
         run.track(loss.item(), name="loss", step=i, context={"subset": "train"})
+        run.track(2**(loss.item()), name="perplexity", step=i, context={"subset": "train"})
         run.track(current_lr, name="lr", step=i, context={"subset": "train"})
 
 
