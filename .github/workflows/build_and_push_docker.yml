@@ -11,27 +11,37 @@ permissions:
 jobs:
   build-push:
     runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.set_image_tag.outputs.image_tag }}
+      pod_name: ${{ steps.set_pod_name.outputs.pod_name }}
     steps:
-      -
-        name: Login to Docker Hub
+      - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      # -
-      #   name: Set up QEMU
-      #   uses: docker/setup-qemu-action@v3
-      # -
-      #   name: Set up Docker Buildx
-      #   uses: docker/setup-buildx-action@v3
-      -
-        name: Build and push
+
+      - name: Build and push
         uses: docker/build-push-action@v6
         with:
           push: true
           tags: |
             docker.io/${{ vars.DOCKERHUB_USERNAME }}/model_trainer:latest
             docker.io/${{ vars.DOCKERHUB_USERNAME }}/model_trainer:sha-${{ github.sha }}
+
+      - name: Set image tag output
+        id: set_image_tag
+        run: |
+          echo "image_tag=docker.io/${{ vars.DOCKERHUB_USERNAME }}/model_trainer:sha-${{ github.sha }}" >> "$GITHUB_OUTPUT"
+
+      - name: Set pod name from commit message
+        id: set_pod_name
+        shell: bash
+        run: |
+          msg="${{ github.event.head_commit.message }}"
+          # Flatten newlines -> spaces, strip CRs, then hard-limit to 191 chars
+          one_line="$(printf "%s" "$msg" | tr '\n' ' ' | tr -d '\r')"
+          printf "pod_name=%.*s\n" 191 "$one_line" >> "$GITHUB_OUTPUT"
 
   launch-pod:
     name: Launch 4090 Pod
@@ -48,10 +58,22 @@ jobs:
           if [ "$code" -ne 200 ]; then
             echo "Auth failed (expect 200). Check key permissions (set to All) and header format."; exit 1
           fi
+
       - name: Create pod
         shell: bash
         run: |
-          payload='{"templateId":"${{ vars.RUNPOD_TEMPLATE_ID }}","cloudType":"COMMUNITY","gpuCount":1,"gpuTypeIds":["NVIDIA GeForce RTX 4090"]}'
+          payload=$(jq -n \
+            --arg templateId "${{ vars.RUNPOD_TEMPLATE_ID }}" \
+            --arg imageName "${{ needs.build-push.outputs.image_tag }}" \
+            --arg name "${{ needs.build-push.outputs.pod_name }}" \
+            '{
+              templateId: $templateId,
+              cloudType: "COMMUNITY",
+              gpuCount: 1,
+              gpuTypeIds: ["NVIDIA GeForce RTX 4090"],
+              imageName: $imageName,
+              name: $name
+            }')
 
           status=$(curl -sS -o resp.json -w "%{http_code}" \
             -X POST "https://rest.runpod.io/v1/pods" \
