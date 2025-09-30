@@ -68,7 +68,6 @@ losses = []
 for lr in lrs:
     torch.manual_seed(0)
     model = create_model(model_cfg, vocab_size, device, dataset)
-    model.compile()
     loader = DataLoader(dataset, batch_size=train_cfg["batch_size"], shuffle=True, collate_fn=collate,
                         num_workers=8, persistent_workers=False)
     optimizer = OPTIMIZER_REGISTRY[train_cfg["optimizer"]](model.parameters(), lr=lr)

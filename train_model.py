@@ -20,7 +20,6 @@ def main():
     model_cfg, data_cfg, train_cfg = load_configs()
     dataset, loader, vocab_size = get_data_loader(data_cfg, train_cfg)
     model = create_model(model_cfg, vocab_size, device, dataset)
-    model.compile()
     model.train()
 
     # Define training params

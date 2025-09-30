@@ -28,6 +28,10 @@ model_cfg = parse(model_cfg_path.read_text(encoding="utf-8"))
 data_cfg = parse(data_cfg_path.read_text(encoding="utf-8"))
 train_cfg = parse(train_cfg_path.read_text(encoding="utf-8"))
 
+num_layers = model_cfg['global']['num_layers']
+
+print(f"Finding batch size for model with {num_layers} layers")
+
 print("getting dataset")
 data = load_dataset(data_cfg["dataset"])
 dataset = SimpleStoriesBPEDataset(data[data_cfg["split"]], max_length=data_cfg["max_length"])
@@ -43,7 +47,6 @@ vocab_size = max(
 ) + 1
 device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
 model = create_model(model_cfg, vocab_size, device, dataset)
-model.compile()
 
 print(f"Using {device} device")
 
