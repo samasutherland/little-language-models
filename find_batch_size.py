@@ -62,8 +62,9 @@ while True:
         loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, collate_fn=collate,
                             num_workers=0, persistent_workers=False)
         get_step_info(model, device, loader, criterion, optimizer, scheduler, timer_start=0, total_steps=5)
-        batch_size *= 2
         print(f"Batch size {batch_size} passed")
+        batch_size *= 2
+
     except RuntimeError as e:
         print(f"Batch size to cause OOM: {batch_size}")
         break
