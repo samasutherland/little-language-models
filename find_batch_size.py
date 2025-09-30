@@ -73,6 +73,9 @@ while True:
 lower_bound = batch_size // 2
 upper_bound = batch_size
 
+if upper_bound == 1:
+    raise ValueError("Model too big. Batch size 1 causes OOM.")
+
 while upper_bound - lower_bound > 1:
     flag = True
     trial = lower_bound + (upper_bound - lower_bound) // 2
