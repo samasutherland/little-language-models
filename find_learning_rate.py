@@ -57,11 +57,11 @@ print(f"train_steps: {train_steps}, warmup_steps: {train_cfg['warmup_steps']}")
 if train_steps < train_cfg["warmup_steps"] * 2:
     print("train steps less than half warmup steps - inaccurate results to follow!")
 
-# First scale batch size by 2 until OOM
+# This should take 10 minutes
 print("finding best learning rate...")
 min = -5
 max = -1
-lrs = torch.logspace(min, max, 7)
+lrs = torch.logspace(min, max, 10)
 
 losses = []
 
@@ -84,7 +84,7 @@ losses = torch.tensor(losses, dtype=torch.float32)
 mask = torch.isfinite(losses)
 if not torch.any(mask):
     raise RuntimeError("All LR trials produced non-finite losses.")
-best_lr = float(lrs[torch.where(mask)[0][torch.argmin(losses[mask]) - 1].item()].item()) # Take the learning rate one smaller than the best one - plateau is long and want to avoid spikes.
+best_lr = float(lrs[torch.where(mask)[0][torch.argmin(losses[mask])].item()].item())
 
 print(f"Best learning rate: {best_lr}")
 train_cfg["base_lr"] = best_lr
