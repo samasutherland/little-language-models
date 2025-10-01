@@ -55,9 +55,10 @@ def main():
 
     print("Finding Step Count...")
 
+    its_per_step = (train_cfg["accumulated_batch_size"] // train_cfg["batch_size"]) + (train_cfg["accumulated_batch_size"] % train_cfg["batch_size"] > 0)
     loader = DataLoader(dataset, batch_size=train_cfg["batch_size"], shuffle=True, collate_fn=collate,
                         num_workers=8, persistent_workers=False)
-    time_per_step, tokens_per_step, loss = get_step_info(model, device, loader, criterion, optimizer, scheduler, timer_start=10, total_steps=110)
+    time_per_step, tokens_per_step, loss = get_step_info(model, device, loader, criterion, optimizer, scheduler, its_per_step, timer_start=10, total_steps=110)
 
     total_steps = int((30 * 60) / time_per_step)
     total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)

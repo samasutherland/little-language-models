@@ -35,10 +35,11 @@ def main():
     # decay = SCHEDULER_REGISTRY[train_cfg["scheduler"]](optimizer, T_max=train_cfg["total_steps"] - train_cfg["warmup_steps"], **train_cfg["scheduler_kwargs"])
     # scheduler = torch.optim.lr_scheduler.SequentialLR(optimizer, schedulers=[warmup, decay], milestones=[train_cfg["warmup_steps"]])
 
-    optimizer = OPTIMIZER_REGISTRY[train_cfg["optimizer"]](model.parameters(), lr=1)
+    optimizer = OPTIMIZER_REGISTRY[train_cfg["optimizer"]](model.parameters(), lr=train_cfg["base_lr"] / 3)
     peak_frac = train_cfg["warmup_steps"] / train_cfg["total_steps"]
     print(f"peak_frac: {peak_frac}")
-    scheduler = SCHEDULER_REGISTRY[train_cfg["scheduler"]](optimizer, max_lr=train_cfg["base_lr"], total_steps=train_cfg["total_steps"], pct_start=peak_frac, div_factor=3., final_div_factor=10.)
+    its_per_step = (train_cfg["accumulated_batch_size"] // train_cfg["batch_size"]) + int(train_cfg["accumulated_batch_size"] % train_cfg["batch_size"] > 0)
+    scheduler = SCHEDULER_REGISTRY[train_cfg["scheduler"]](optimizer, max_lr=train_cfg["base_lr"], total_steps=train_cfg["total_steps"] // its_per_step, pct_start=peak_frac, div_factor=3., final_div_factor=10.)
 
     experiment_name = "deepseek_transformer" if model_cfg["attention"]["project_kv"] else "dense_transformer"
 
@@ -60,18 +61,27 @@ def main():
         stop.set()
     signal.signal(signal.SIGTERM, _handle_sigterm)
     token_count = 0
+
+    loss_buffer = torch.ones(100) * torch.inf
+    def push_to_buffer(x):
+        return torch.cat((loss_buffer[1:], torch.tensor([x])))
+
+
+    its = 0
+
     for i, batch in enumerate(loader):
         x = batch["input_ids"].to(device, non_blocking=True)
         token_count += x[:, 1:].numel()
         logits = model(x[:, :-1])
         loss = criterion(logits.reshape(-1, logits.size(-1)), x[:, 1:].reshape(-1))
-        loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-        optimizer.step()
-        scheduler.step()
-        optimizer.zero_grad()
-        current_lr = scheduler.get_last_lr()[0]
+        # skip if loss is huge
+        if loss.item() > 10 * torch.median(loss_buffer):
+            print("loss huge. skipping...")
+            continue
 
+        loss_buffer = push_to_buffer(loss.item())
+
+        current_lr = scheduler.get_last_lr()[0]
         run.track(loss.item(), name="loss", step=i, context={"subset": "train"})
         run.track(2**(loss.item()), name="perplexity", step=i, context={"subset": "train"})
         run.track(current_lr, name="lr", step=i, context={"subset": "train"})
@@ -87,6 +97,18 @@ def main():
             with open(os.path.join(save_dir, "best_loss_step.txt"), "w") as f:
                 f.write(f"loss of {best_loss} achieved on step {i}")
         run.track(best_loss, name="best_loss", step=i, context={"subset": "train"})
+
+        loss = loss / its_per_step
+
+        loss.backward()
+        its += 1
+        if its == its_per_step:
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            optimizer.step()
+            scheduler.step()
+            optimizer.zero_grad()
+            its = 0
+
 
         if stop.is_set():
             print("Received SIGTERM, finishing step and exiting cleanly...")

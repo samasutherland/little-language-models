@@ -131,8 +131,8 @@ class TransformerLayer(nn.Module):
 
     def forward(self, x):
         x = x[:, -self.attention.max_context:, :]
-        x = x + self.attn_dropout(self.attn_norm(self.attention(x)))
-        x = x + self.ffn_dropout(self.ffn_norm(self.ffn(x)))
+        x = x + self.attn_dropout(self.attention(self.attn_norm(x)))
+        x = x + self.ffn_dropout(self.ffn(self.ffn_norm(x)))
         return x
 
 class Transformer(nn.Module):

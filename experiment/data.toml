@@ -2,4 +2,4 @@
 
 dataset = "SimpleStories/SimpleStories"
 split = "train"
-max_length = 500
+max_length = 512

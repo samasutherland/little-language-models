@@ -83,12 +83,13 @@ def create_model(model_cfg, vocab_size, device, dataset):
     model.embedding.padding_idx = dataset.pad_id
     return model
 
-def get_step_info(model, device, loader, criterion, optimizer, scheduler, timer_start=5, total_steps=10):
+def get_step_info(model, device, loader, criterion, optimizer, scheduler, its_per_step, timer_start=5, total_steps=10):
     token_count = 0
 
     assert timer_start < total_steps
     assert total_steps > 0
 
+    its = 0
 
     for i, batch in enumerate(loader):
         x = batch["input_ids"].to(device=device, non_blocking=True)
@@ -100,10 +101,13 @@ def get_step_info(model, device, loader, criterion, optimizer, scheduler, timer_
         logits = model(x[:, :-1])
         loss = criterion(logits.reshape(-1, logits.size(-1)), x[:, 1:].reshape(-1))
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-        optimizer.step()
-        scheduler.step()
-        optimizer.zero_grad()
+        its += 1
+        if its == its_per_step:
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            optimizer.step()
+            scheduler.step()
+            optimizer.zero_grad()
+            its = 0
         if i == total_steps - 1:
             break
     # torch.cuda.synchronize()

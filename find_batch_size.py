@@ -63,9 +63,10 @@ print("finding max learning rate...")
 batch_size = 1
 while True:
     try:
+        its_per_step = (train_cfg["accumulated_batch_size"] // batch_size) + int(train_cfg["accumulated_batch_size"] % batch_size > 0)
         loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, collate_fn=collate,
                             num_workers=0, persistent_workers=False)
-        get_step_info(model, device, loader, criterion, optimizer, scheduler, timer_start=0, total_steps=5)
+        get_step_info(model, device, loader, criterion, optimizer, scheduler, its_per_step, timer_start=0, total_steps=5)
         print(f"Batch size {batch_size} passed")
         batch_size *= 2
 
@@ -83,9 +84,10 @@ while upper_bound - lower_bound > 1:
     flag = True
     trial = lower_bound + (upper_bound - lower_bound) // 2
     try:
+        its_per_step = (train_cfg["accumulated_batch_size"] // trial) + int(train_cfg["accumulated_batch_size"] % trial > 0)
         loader = DataLoader(dataset, batch_size=trial, shuffle=True, collate_fn=collate,
                             num_workers=0, persistent_workers=False)
-        get_step_info(model, device, loader, criterion, optimizer, scheduler, timer_start=0, total_steps=5)
+        get_step_info(model, device, loader, criterion, optimizer, scheduler, its_per_step, timer_start=0, total_steps=5)
     except RuntimeError as e:
         flag = False
 

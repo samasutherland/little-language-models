@@ -60,7 +60,7 @@ if train_steps < train_cfg["warmup_steps"] * 2:
 # First scale batch size by 2 until OOM
 print("finding best learning rate...")
 min = -5
-max = -2
+max = -1
 lrs = torch.logspace(min, max, 7)
 
 losses = []
@@ -71,10 +71,12 @@ for lr in lrs:
     loader = DataLoader(dataset, batch_size=train_cfg["batch_size"], shuffle=True, collate_fn=collate,
                         num_workers=8, persistent_workers=False)
     optimizer = OPTIMIZER_REGISTRY[train_cfg["optimizer"]](model.parameters(), lr=lr)
+    its_per_step = (train_cfg["accumulated_batch_size"] // train_cfg["batch_size"]) + int(train_cfg["accumulated_batch_size"] % train_cfg["batch_size"] > 0)
     scheduler = SCHEDULER_REGISTRY[train_cfg["scheduler"]](optimizer, max_lr=lr,
-                                                           total_steps=train_cfg["total_steps"], pct_start=peak_frac,
+                                                           total_steps=train_cfg["total_steps"] // its_per_step, pct_start=peak_frac,
                                                            div_factor=3., final_div_factor=10.)
-    _, _, loss = get_step_info(model, device, loader, criterion, optimizer, scheduler, timer_start=0, total_steps=train_steps)
+
+    _, _, loss = get_step_info(model, device, loader, criterion, optimizer, scheduler, its_per_step, timer_start=0, total_steps=train_steps)
     losses.append(loss)
     print(f"lr {lr} achieved loss {loss}")
 

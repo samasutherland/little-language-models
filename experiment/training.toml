@@ -1,6 +1,7 @@
 # Training hyperparameters
 
 batch_size = 32
+accumulated_batch_size = 512
 loss = "CrossEntropyLoss"
 optimizer = "AdamW"
 test_prompt = "The dog"
