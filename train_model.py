@@ -83,7 +83,7 @@ def main():
 
         current_lr = scheduler.get_last_lr()[0]
         run.track(loss.item(), name="loss", step=i, context={"subset": "train"})
-        run.track(2**(loss.item()), name="perplexity", step=i, context={"subset": "train"})
+        run.track(math.exp(loss.item()), name="perplexity", step=i, context={"subset": "train"})
         run.track(current_lr, name="lr", step=i, context={"subset": "train"})
 
 
