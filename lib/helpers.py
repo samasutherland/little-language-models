@@ -36,8 +36,8 @@ def generate_sample(model, dataset, device, prompt, n_words=15, max_new_tokens=6
             logits = logits / max(temperature, 1e-8)
             logits = _filter(logits, top_k, top_p)
             next_id = torch.multinomial(torch.softmax(logits, dim=-1), num_samples=1)
-            if dataset.end_id is not None and dataset.end_id < logits.size(-1) and int(
-                    next_id.item()) == dataset.end_id:
+            if dataset.eos_id is not None and dataset.eos_id < logits.size(-1) and int(
+                    next_id.item()) == dataset.eos_id:
                 break
             ids = torch.cat([ids, next_id], dim=1)
             if len(dataset.tok.decode(ids[0].tolist()).split()) >= n_words:
@@ -62,14 +62,15 @@ def load_configs():
 
 def get_data_loader(data_cfg, train_cfg):
     data = load_dataset(data_cfg["dataset"])
-    dataset = SimpleStoriesBPEDataset(data[data_cfg["split"]], max_length=data_cfg["max_length"])
+    tokenizer_model_path = data_cfg["tokenizer_path"]
+    dataset = SimpleStoriesBPEDataset(data[data_cfg["split"]], model_path=tokenizer_model_path, max_length=data_cfg["max_length"])
 
     collate = partial(pad_collate_fn, pad_id=dataset.pad_id)
     loader = DataLoader(dataset, batch_size=train_cfg["batch_size"], shuffle=True, collate_fn=collate,
                         num_workers=8, persistent_workers=True, pin_memory=True, prefetch_factor=8)
 
     torch.set_default_dtype(torch.bfloat16)
-    vocab_size = dataset.max_id + 1
+    vocab_size = dataset.vocab_size
     return dataset, loader, vocab_size
 
 def create_model(model_cfg, vocab_size, device, dataset):
