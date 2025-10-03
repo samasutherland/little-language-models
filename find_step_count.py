@@ -34,12 +34,7 @@ def main():
     collate = partial(pad_collate_fn, pad_id=dataset.pad_id)
 
     torch.set_default_dtype(torch.bfloat16)
-    vocab_size = max(
-        max(dataset.tok.vocab.keys(), default=-1),
-        max(getattr(dataset.tok, "merge_dict", {}).values(), default=-1),
-        dataset.pad_id,
-        dataset.end_id,
-    ) + 1
+    vocab_size = dataset.vocab_size
     device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
     model = create_model(model_cfg, vocab_size, device, dataset)
 
