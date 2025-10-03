@@ -23,8 +23,8 @@ sdpa = true
 type = "RMSNorm"
 
 [dropout]
-attn_dropout = 0.1
-ffn_dropout = 0.1
+attn_dropout = 0.0
+ffn_dropout = 0.0
 
 [rope]
 base = 10000
