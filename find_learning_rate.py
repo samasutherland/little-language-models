@@ -59,9 +59,9 @@ max = -1
 lrs = torch.logspace(min, max, 10)
 
 losses = []
-
+last_loss = torch.inf
 for lr in lrs:
-    torch.manual_seed(0)
+    torch.manual_seed(42)
     model = create_model(model_cfg, vocab_size, device, dataset)
     loader = DataLoader(dataset, batch_size=train_cfg["batch_size"], shuffle=True, collate_fn=collate,
                         num_workers=8, persistent_workers=False)
@@ -72,8 +72,12 @@ for lr in lrs:
                                                            div_factor=3., final_div_factor=10.)
 
     _, _, loss = get_step_info(model, device, loader, criterion, optimizer, scheduler, its_per_step, timer_start=0, total_steps=train_steps, val_steps=20)
-    losses.append(loss)
     print(f"lr {lr} achieved loss {loss}")
+    losses.append(loss)
+    if loss > last_loss:
+        break
+    last_loss = loss
+
 
 losses = torch.tensor(losses, dtype=torch.float32)
 mask = torch.isfinite(losses)

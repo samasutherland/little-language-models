@@ -11,7 +11,7 @@ from lib.helpers import generate_sample, pad_collate_fn, load_configs, get_data_
 LOSS_REGISTRY = {"CrossEntropyLoss": torch.nn.CrossEntropyLoss}
 OPTIMIZER_REGISTRY = {"Adam": torch.optim.Adam, "SGD": torch.optim.SGD, "AdamW": torch.optim.AdamW}
 SCHEDULER_REGISTRY = {"OneCycleLR": OneCycleLR, "Cosine": CosineAnnealingLR}
-torch.manual_seed(0)
+torch.manual_seed(42)
 
 def main():
     device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
