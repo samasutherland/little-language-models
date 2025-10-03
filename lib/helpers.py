@@ -117,23 +117,25 @@ def get_step_info(model, device, loader, criterion, optimizer, scheduler, its_pe
     tokens_per_step = x[:, 1:].numel()
     time_per_step = (end_time - start_time)/(total_steps - timer_start)
 
-
+    out_loss = loss.item()
+    del x, logits, loss
     if val_steps > 0:
-        val_losses = []
-        model.eval()
-        its=0
-        for i, batch in data_iter:
-            x = batch["input_ids"].to(device=device, non_blocking=True)
-            logits = model(x[:, :-1])
-            loss = criterion(logits.reshape(-1, logits.size(-1)), x[:, 1:].reshape(-1))
-            val_losses.append(loss.item())
-            its += 1
-            if its == val_steps:
-                break
-        model.train()
+        with torch.no_grad():
+            val_losses = []
+            model.eval()
+            its=0
+            for i, batch in data_iter:
+                x = batch["input_ids"].to(device=device, non_blocking=True)
+                logits = model(x[:, :-1])
+                loss = criterion(logits.reshape(-1, logits.size(-1)), x[:, 1:].reshape(-1))
+                val_losses.append(loss.item())
+                its += 1
+                if its == val_steps:
+                    break
+            model.train()
         return time_per_step, tokens_per_step, torch.mean(torch.tensor(val_losses))
 
-    return time_per_step, tokens_per_step, loss.item()
+    return time_per_step, tokens_per_step, out_loss
 
 
 
