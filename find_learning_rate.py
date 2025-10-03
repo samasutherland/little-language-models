@@ -29,7 +29,7 @@ train_cfg = parse(train_cfg_path.read_text(encoding="utf-8"))
 
 print("getting dataset")
 data = load_dataset(data_cfg["dataset"])
-dataset = SimpleStoriesBPEDataset(data[data_cfg["split"]], max_length=data_cfg["max_length"])
+dataset = SimpleStoriesBPEDataset(data[data_cfg["split"]], model_path=data_cfg["tokenizer_path"], max_length=data_cfg["max_length"])
 
 collate = partial(pad_collate_fn, pad_id=dataset.pad_id)
 
@@ -71,7 +71,7 @@ for lr in lrs:
                                                            total_steps=train_cfg["total_steps"] // its_per_step, pct_start=peak_frac,
                                                            div_factor=3., final_div_factor=10.)
 
-    _, _, loss = get_step_info(model, device, loader, criterion, optimizer, scheduler, its_per_step, timer_start=0, total_steps=train_steps)
+    _, _, loss = get_step_info(model, device, loader, criterion, optimizer, scheduler, its_per_step, timer_start=0, total_steps=train_steps, val_steps=20)
     losses.append(loss)
     print(f"lr {lr} achieved loss {loss}")
 

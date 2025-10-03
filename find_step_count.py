@@ -29,7 +29,7 @@ def main():
 
     print("getting dataset")
     data = load_dataset(data_cfg["dataset"])
-    dataset = SimpleStoriesBPEDataset(data[data_cfg["split"]], max_length=data_cfg["max_length"])
+    dataset = SimpleStoriesBPEDataset(data[data_cfg["split"]], model_path=data_cfg["tokenizer_path"], max_length=data_cfg["max_length"])
 
     collate = partial(pad_collate_fn, pad_id=dataset.pad_id)
 

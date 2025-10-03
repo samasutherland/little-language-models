@@ -84,15 +84,16 @@ def create_model(model_cfg, vocab_size, device, dataset):
     model.embedding.padding_idx = dataset.pad_id
     return model
 
-def get_step_info(model, device, loader, criterion, optimizer, scheduler, its_per_step, timer_start=5, total_steps=10):
+def get_step_info(model, device, loader, criterion, optimizer, scheduler, its_per_step, timer_start=5, total_steps=10, val_steps=0):
     token_count = 0
 
     assert timer_start < total_steps
     assert total_steps > 0
 
     its = 0
+    data_iter = iter(enumerate(loader))
 
-    for i, batch in enumerate(loader):
+    for i, batch in data_iter:
         x = batch["input_ids"].to(device=device, non_blocking=True)
 
         if i == timer_start:
@@ -115,6 +116,23 @@ def get_step_info(model, device, loader, criterion, optimizer, scheduler, its_pe
     end_time = time.perf_counter()
     tokens_per_step = x[:, 1:].numel()
     time_per_step = (end_time - start_time)/(total_steps - timer_start)
+
+
+    if val_steps > 0:
+        val_losses = []
+        model.eval()
+        its=0
+        for i, batch in data_iter:
+            x = batch["input_ids"].to(device=device, non_blocking=True)
+            logits = model(x[:, :-1])
+            loss = criterion(logits.reshape(-1, logits.size(-1)), x[:, 1:].reshape(-1))
+            val_losses.append(loss.item())
+            its += 1
+            if its == val_steps:
+                break
+        model.train()
+        return time_per_step, tokens_per_step, torch.mean(torch.tensor(val_losses))
+
     return time_per_step, tokens_per_step, loss.item()
 
 
