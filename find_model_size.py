@@ -231,7 +231,15 @@ def find_param_token_ratio(num_layers, model_cfg, vocab_size, device, dataset, t
 
     # Define training params
     criterion = LOSS_REGISTRY[train_cfg["loss"]](ignore_index=dataset.pad_id)
-    optimizer = OPTIMIZER_REGISTRY[train_cfg["optimizer"]](model.parameters(), lr=train_cfg["base_lr"])
+    decay, no_decay = [], []
+    for n, p in model.named_parameters():
+        if p.ndim == 1 or n.endswith("bias") or "norm" in n.lower():
+            no_decay.append(p)
+        else:
+            decay.append(p)
+    optimizer = OPTIMIZER_REGISTRY[train_cfg["optimizer"]](
+        [{"params": decay, "weight_decay": train_cfg["optimizer_args"]["weight_decay"]},
+         {"params": no_decay, "weight_decay": 0.0}], lr=train_cfg["base_lr"], **train_cfg["optimizer_kwargs"])
 
     warmup = torch.optim.lr_scheduler.LinearLR(optimizer, total_iters=train_cfg["warmup_steps"])
     decay = SCHEDULER_REGISTRY[train_cfg["scheduler"]](optimizer,
@@ -279,7 +287,6 @@ def main():
 
     collate = partial(pad_collate_fn, pad_id=dataset.pad_id)
 
-    torch.set_default_dtype(torch.bfloat16)
     vocab_size = max(
         max(dataset.tok.vocab.keys(), default=-1),
         max(getattr(dataset.tok, "merge_dict", {}).values(), default=-1),

@@ -7,6 +7,7 @@ import math
 import tomllib
 import uuid
 from lib.helpers import generate_sample, pad_collate_fn, load_configs, get_data_loader, create_model
+from contextlib import nullcontext
 
 LOSS_REGISTRY = {"CrossEntropyLoss": torch.nn.CrossEntropyLoss}
 OPTIMIZER_REGISTRY = {"Adam": torch.optim.Adam, "SGD": torch.optim.SGD, "AdamW": torch.optim.AdamW}
@@ -15,6 +16,8 @@ torch.manual_seed(42)
 
 def main():
     device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
+    amp_ctx = torch.autocast(device_type=device, dtype=torch.bfloat16) if torch.amp.autocast_mode.is_autocast_available(device) else nullcontext()
+
     print(f"Using {device} device")
 
     model_cfg, data_cfg, train_cfg = load_configs()
@@ -35,7 +38,13 @@ def main():
     # decay = SCHEDULER_REGISTRY[train_cfg["scheduler"]](optimizer, T_max=train_cfg["total_steps"] - train_cfg["warmup_steps"], **train_cfg["scheduler_kwargs"])
     # scheduler = torch.optim.lr_scheduler.SequentialLR(optimizer, schedulers=[warmup, decay], milestones=[train_cfg["warmup_steps"]])
 
-    optimizer = OPTIMIZER_REGISTRY[train_cfg["optimizer"]](model.parameters(), lr=train_cfg["base_lr"] / 3)
+    decay, no_decay = [], []
+    for n, p in model.named_parameters():
+        if p.ndim == 1 or n.endswith("bias") or "norm" in n.lower():
+            no_decay.append(p)
+        else:
+            decay.append(p)
+    optimizer = OPTIMIZER_REGISTRY[train_cfg["optimizer"]]([{"params": decay, "weight_decay": train_cfg["weight_decay"]}, {"params": no_decay, "weight_decay": 0.0}], lr=train_cfg["base_lr"] / 3, **train_cfg["optimizer_kwargs"])
     peak_frac = train_cfg["warmup_steps"] / train_cfg["total_steps"]
     print(f"peak_frac: {peak_frac}")
     its_per_step = (train_cfg["accumulated_batch_size"] // train_cfg["batch_size"]) + int(train_cfg["accumulated_batch_size"] % train_cfg["batch_size"] > 0)
@@ -72,8 +81,9 @@ def main():
     for i, batch in enumerate(loader):
         x = batch["input_ids"].to(device, non_blocking=True)
         token_count += x[:, 1:].numel()
-        logits = model(x[:, :-1])
-        loss = criterion(logits.reshape(-1, logits.size(-1)), x[:, 1:].reshape(-1))
+        with amp_ctx:
+            logits = model(x[:, :-1])
+            loss = criterion(logits.reshape(-1, logits.size(-1)), x[:, 1:].reshape(-1))
         # skip if loss is huge
         if loss.item() > 10 * torch.median(loss_buffer):
             print("loss huge. skipping...")
@@ -118,7 +128,7 @@ def main():
     print("storing token_count and tokens per parameter...")
     run["token_count"] = token_count
     total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    run["tokens_per_parameter"] = total_params / token_count
+    run["tokens_per_parameter"] = token_count / total_params
     run["best_loss"] = best_loss
 
     print("Generating sample...")

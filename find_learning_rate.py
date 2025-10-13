@@ -33,7 +33,6 @@ dataset = SimpleStoriesBPEDataset(data[data_cfg["split"]], model_path=data_cfg["
 
 collate = partial(pad_collate_fn, pad_id=dataset.pad_id)
 
-torch.set_default_dtype(torch.bfloat16)
 vocab_size = dataset.vocab_size
 device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
 
@@ -65,7 +64,15 @@ for lr in lrs:
     model = create_model(model_cfg, vocab_size, device, dataset)
     loader = DataLoader(dataset, batch_size=train_cfg["batch_size"], shuffle=True, collate_fn=collate,
                         num_workers=8, persistent_workers=False)
-    optimizer = OPTIMIZER_REGISTRY[train_cfg["optimizer"]](model.parameters(), lr=lr)
+    decay, no_decay = [], []
+    for n, p in model.named_parameters():
+        if p.ndim == 1 or n.endswith("bias") or "norm" in n.lower():
+            no_decay.append(p)
+        else:
+            decay.append(p)
+    optimizer = OPTIMIZER_REGISTRY[train_cfg["optimizer"]](
+        [{"params": decay, "weight_decay": train_cfg["weight_decay"]},
+         {"params": no_decay, "weight_decay": 0.0}], lr=lr, **train_cfg["optimizer_kwargs"])
     its_per_step = (train_cfg["accumulated_batch_size"] // train_cfg["batch_size"]) + int(train_cfg["accumulated_batch_size"] % train_cfg["batch_size"] > 0)
     scheduler = SCHEDULER_REGISTRY[train_cfg["scheduler"]](optimizer, max_lr=lr,
                                                            total_steps=train_cfg["total_steps"] // its_per_step, pct_start=peak_frac,

@@ -33,7 +33,6 @@ def main():
 
     collate = partial(pad_collate_fn, pad_id=dataset.pad_id)
 
-    torch.set_default_dtype(torch.bfloat16)
     vocab_size = dataset.vocab_size
     device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
     model = create_model(model_cfg, vocab_size, device, dataset)
@@ -43,7 +42,15 @@ def main():
 
     # Define training params
     criterion = LOSS_REGISTRY[train_cfg["loss"]](ignore_index=dataset.pad_id)
-    optimizer = OPTIMIZER_REGISTRY[train_cfg["optimizer"]](model.parameters(), lr=train_cfg["base_lr"])
+    decay, no_decay = [], []
+    for n, p in model.named_parameters():
+        if p.ndim == 1 or n.endswith("bias") or "norm" in n.lower():
+            no_decay.append(p)
+        else:
+            decay.append(p)
+    optimizer = OPTIMIZER_REGISTRY[train_cfg["optimizer"]](
+        [{"params": decay, "weight_decay": train_cfg["weight_decay"]},
+         {"params": no_decay, "weight_decay": 0.0}], lr=train_cfg["base_lr"], **train_cfg["optimizer_kwargs"])
 
     scheduler = SCHEDULER_REGISTRY[train_cfg["scheduler"]](optimizer, max_lr=train_cfg["base_lr"],
                                                            total_steps=train_cfg["total_steps"])

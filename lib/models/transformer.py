@@ -149,7 +149,7 @@ class Transformer(nn.Module):
         updated_norm_kwargs = {key: val for key, val in norm_kwargs.items() if key != "type"}
 
 
-        self.embedding = nn.Embedding(global_kwargs["vocab_size"], global_kwargs["embedding_dim"])
+        self.embedding = nn.Embedding(global_kwargs["vocab_size"], global_kwargs["embedding_dim"], padding_idx=global_kwargs.get("padding_idx", 3))
         self.transformer_stack = nn.Sequential(*[TransformerLayer(global_kwargs, attention_kwargs, dropout_kwargs, updated_norm_kwargs, rope_kwargs, norm) for _ in range(global_kwargs["num_layers"])])
 
 
