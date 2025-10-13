@@ -93,7 +93,10 @@ def main():
 
         current_lr = scheduler.get_last_lr()[0]
         run.track(loss.item(), name="loss", step=i, context={"subset": "train"})
-        run.track(math.exp(loss.item()), name="perplexity", step=i, context={"subset": "train"})
+        if not torch.isfinite(loss):
+            pass
+        else:
+            run.track(torch.exp(loss.detach().to(torch.float32).clamp(max=88.72)).item(), name="perplexity", step=i, context={"subset": "train"})
         run.track(current_lr, name="lr", step=i, context={"subset": "train"})
 
 
