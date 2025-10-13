@@ -6,3 +6,4 @@ tomlkit
 torchinfo
 tiktoken
 sentencepiece
+sympy

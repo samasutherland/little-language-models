@@ -12,6 +12,7 @@ from tqdm import tqdm
 import torchinfo
 from data.datasets import SimpleStoriesBPEDataset
 from datasets import load_dataset
+from sympy import divisors
 
 LOSS_REGISTRY = {"CrossEntropyLoss": torch.nn.CrossEntropyLoss}
 OPTIMIZER_REGISTRY = {"Adam": torch.optim.Adam, "SGD": torch.optim.SGD, "AdamW": torch.optim.AdamW}
@@ -61,47 +62,27 @@ scheduler = SCHEDULER_REGISTRY[train_cfg["scheduler"]](optimizer, max_lr=train_c
                                                        total_steps=train_cfg["total_steps"])
 
 # First scale batch size by 2 until OOM
-print("finding max learning rate...")
-batch_size = 1
-while True:
+print("finding batch size...")
+accumulated_batch_size = train_cfg["accumulated_batch_size"]
+batch_sizes = list(divisors(accumulated_batch_size))[::-1]
+for i, batch_size in enumerate(batch_sizes):
     try:
         its_per_step = (train_cfg["accumulated_batch_size"] // batch_size) + int(train_cfg["accumulated_batch_size"] % batch_size > 0)
         loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, collate_fn=collate,
                             num_workers=0, persistent_workers=False)
-        get_step_info(model, device, loader, criterion, optimizer, scheduler, its_per_step, timer_start=0, total_steps=5)
+        get_step_info(model, device, loader, criterion, optimizer, scheduler, its_per_step, timer_start=0, total_steps=20)
         print(f"Batch size {batch_size} passed")
-        batch_size *= 2
-
-    except RuntimeError as e:
-        print(f"Batch size to cause OOM: {batch_size}")
         break
 
-lower_bound = batch_size // 2
-upper_bound = batch_size
-
-if upper_bound == 1:
-    raise ValueError("Model too big. Batch size 1 causes OOM.")
-
-while upper_bound - lower_bound > 1:
-    flag = True
-    trial = lower_bound + (upper_bound - lower_bound) // 2
-    try:
-        its_per_step = (train_cfg["accumulated_batch_size"] // trial) + int(train_cfg["accumulated_batch_size"] % trial > 0)
-        loader = DataLoader(dataset, batch_size=trial, shuffle=True, collate_fn=collate,
-                            num_workers=0, persistent_workers=False)
-        get_step_info(model, device, loader, criterion, optimizer, scheduler, its_per_step, timer_start=0, total_steps=5)
     except RuntimeError as e:
-        flag = False
+        print(f"Batch size {batch_size} causes OOM")
+        if batch_size == 1:
+            raise ValueError("Model too big. Batch size 1 causes OOM.")
 
-    if flag:
-        print(f"Batch size {trial} passed")
-        lower_bound = trial
-    else:
-        print(f"Batch size {trial} caused OOM")
-        upper_bound = trial
 
-print(f"Final batch size: {lower_bound}")
-train_cfg["batch_size"] = lower_bound
+
+print(f"Final batch size: {batch_size}")
+train_cfg["batch_size"] = batch_size
 
 train_cfg_path.write_text(dumps(train_cfg), encoding="utf-8")
 
