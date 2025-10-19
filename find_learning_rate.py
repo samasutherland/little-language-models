@@ -47,9 +47,10 @@ peak_frac = train_cfg["warmup_steps"] / train_cfg["total_steps"]
 print(f"peak_frac: {peak_frac}")
 
 train_steps = train_cfg["total_steps"] // train_cfg["training_time"]
+train_steps = max(train_steps, train_cfg["warmup_steps"] * 2)
 print(f"train_steps: {train_steps}, warmup_steps: {train_cfg['warmup_steps']}")
 if train_steps < train_cfg["warmup_steps"] * 2:
-    print("train steps less than half warmup steps - inaccurate results to follow!")
+    print("warmup steps less than half trian steps - inaccurate results to follow!")
 
 # This should take 10 minutes
 print("finding best learning rate...")

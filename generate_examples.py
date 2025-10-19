@@ -19,5 +19,5 @@ for opener in ["the dog ", "sam went ", "caitlin pooped on the ", "jayden had a 
 
 with open("experiment/examples.txt", "w") as f:
     for example in examples:
-        f.write(f"{example}\n")
+        f.write(f"{example}\n\n")
 
