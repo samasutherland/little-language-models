@@ -59,7 +59,7 @@ while upper_bound - lower_bound > 1:
     else:
         upper_bound = num_layers
 
-model_cfg, data_cfg, train_cfg = results[num_layers]
+model_cfg, data_cfg, train_cfg = results[upper_bound] # prefer slightly overparameterised
 model_cfg_path.write_text(dumps(model_cfg), encoding="utf-8")
 data_cfg_path.write_text(dumps(data_cfg), encoding="utf-8")
 train_cfg_path.write_text(dumps(train_cfg), encoding="utf-8")

@@ -137,6 +137,7 @@ def main():
                         break
                 val_loss = torch.tensor(val_losses).mean().item()
                 run.track(val_loss, name="loss", step=i, context={"subset": "val"})
+                print(f"val loss: {val_loss}")
                 if val_loss < best_val_loss:
                     best_val_loss = val_loss
                     torch.save({"model": model.state_dict(), "optimizer": optimizer.state_dict(),
