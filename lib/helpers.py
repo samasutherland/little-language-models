@@ -12,7 +12,7 @@ import tomllib
 def generate_sample(model, dataset, device, prompt, n_words=15, max_new_tokens=60, temperature=1.0, top_k=50, top_p=0.9):
     model.eval()
     with torch.no_grad():
-        ids0 = dataset.tok.encode(prompt) or [dataset.pad_id]
+        ids0 = dataset.tok.encode(prompt)
         ids = torch.tensor(ids0, dtype=torch.long, device=device).unsqueeze(0)
         for i in range(max_new_tokens):
             logits = model(ids)[:, -1, :].float()
@@ -44,10 +44,10 @@ def load_configs():
 
     return model_cfg, data_cfg, train_cfg
 
-def get_data_loader(data_cfg, train_cfg):
+def get_data_loader(data_cfg, train_cfg, split=None):
     data = load_dataset(data_cfg["dataset"])
     tokenizer_model_path = data_cfg["tokenizer_path"]
-    dataset = SimpleStoriesBPEDataset(data[data_cfg["split"]], model_path=tokenizer_model_path, max_length=data_cfg["max_length"])
+    dataset = SimpleStoriesBPEDataset(data[data_cfg["split"] if split is None else split], model_path=tokenizer_model_path, max_length=data_cfg["max_length"])
 
     collate = partial(pad_collate_fn, pad_id=dataset.pad_id)
     loader = DataLoader(dataset, batch_size=train_cfg["batch_size"], shuffle=True, collate_fn=collate,

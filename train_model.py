@@ -22,6 +22,7 @@ def main():
 
     model_cfg, data_cfg, train_cfg = load_configs()
     dataset, loader, vocab_size = get_data_loader(data_cfg, train_cfg)
+    _, val_loader, _ = get_data_loader(data_cfg, train_cfg, split="test")
     model = create_model(model_cfg, vocab_size, device, dataset)
     model.train()
 
@@ -32,6 +33,7 @@ def main():
     save_dir = "experiment/checkpoints"
     os.makedirs(save_dir, exist_ok=True)
     best_loss = float("inf")
+    best_val_loss = float("inf")
 
     # optimizer = OPTIMIZER_REGISTRY[train_cfg["optimizer"]](model.parameters(), lr=train_cfg["base_lr"])
     # warmup = torch.optim.lr_scheduler.LinearLR(optimizer, total_iters=train_cfg["warmup_steps"])
@@ -121,6 +123,26 @@ def main():
             scheduler.step()
             optimizer.zero_grad()
             its = 0
+
+        if (i * its_per_step) % train_cfg["val_freq"] == 0:
+            model.eval()
+            with torch.no_grad():
+                val_losses = []
+                for j, val_batch in enumerate(val_loader):
+                    logits = model(val_batch[:, :-1])
+                    val_loss = criterion(logits.reshape(-1, logits.size(-1)), x[:, 1:].reshape(-1))
+                    val_losses.append(val_loss.item())
+                    if j == its_per_step * train_cfg["val_batches"]:
+                        break
+                val_loss = torch.tensor(val_losses).mean().item()
+                run.track(val_loss, name="loss", step=i, context={"subset": "val"})
+                if val_loss < best_val_loss:
+                    best_val_loss = val_loss
+                    torch.save({"model": model.state_dict(), "optimizer": optimizer.state_dict(),
+                                "step": i}, os.path.join(save_dir, "ckpt_best_val.pt"))
+                    with open(os.path.join(save_dir, "best_val_loss_step.txt"), "w") as f:
+                        f.write(f"loss of {best_loss} achieved on step {i}")
+            model.train()
 
 
         if stop.is_set():

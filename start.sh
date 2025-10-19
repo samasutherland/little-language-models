@@ -10,11 +10,8 @@ fi
 exec > >(tee "/workspace/experiment/stdout.log")
 exec 2> >(tee "/workspace/experiment/stderr.log" >&2)
 
-echo "Finding Batch Size..."
-python3 find_batch_size.py
-
-echo "Finding Step Count..."
-python3 find_step_count.py
+echo "Finding Model Size..."
+python3 find_model_size.py
 
 echo "Finding Learning Rate..."
 python3 find_learning_rate.py
@@ -24,6 +21,9 @@ rc=$?
 echo "train_model.py exited with $rc"
 sync
 sleep 2
+
+echo "Generating examples"
+python3 generate_examples.py
 
 tar -C /workspace -czf /workspace/aim_repo_${RUNPOD_POD_ID}.tar.gz .aim
 

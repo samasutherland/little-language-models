@@ -17,15 +17,7 @@ LOSS_REGISTRY = {"CrossEntropyLoss": torch.nn.CrossEntropyLoss}
 OPTIMIZER_REGISTRY = {"Adam": torch.optim.Adam, "SGD": torch.optim.SGD, "AdamW": torch.optim.AdamW}
 SCHEDULER_REGISTRY = {"OneCycleLR": OneCycleLR, "Cosine": CosineAnnealingLR}
 
-def main():
-    print("loading configs...")
-    model_cfg_path = Path("experiment/model.toml")
-    data_cfg_path = Path("experiment/data.toml")
-    train_cfg_path = Path("experiment/training.toml")
-
-    model_cfg = parse(model_cfg_path.read_text(encoding="utf-8"))
-    data_cfg = parse(data_cfg_path.read_text(encoding="utf-8"))
-    train_cfg = parse(train_cfg_path.read_text(encoding="utf-8"))
+def find_step_count(model_cfg, data_cfg, train_cfg):
 
     print("getting dataset")
     data = load_dataset(data_cfg["dataset"])
@@ -62,15 +54,14 @@ def main():
                         num_workers=8, persistent_workers=False)
     time_per_step, tokens_per_step, loss = get_step_info(model, device, loader, criterion, optimizer, scheduler, its_per_step, timer_start=10, total_steps=110)
 
-    total_steps = int((30 * 60) / time_per_step)
+    total_steps = int((train_cfg["training_time"] * 60) / time_per_step)
     total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     total_tokens = int(tokens_per_step * total_steps)
     print(f"Estimated total steps: {total_steps}\n Estimated total tokens: {total_tokens} (tokens/param: {total_tokens / total_params:.2f})")
 
     train_cfg["total_steps"] = total_steps
     train_cfg["warmup_steps"] = max(10, total_steps // 100) # 1% of time in warmup
-    train_cfg_path.write_text(dumps(train_cfg), encoding="utf-8")
 
-if __name__ == "__main__":
-    main()
+    return model_cfg, data_cfg, train_cfg, total_tokens / total_params
+
 

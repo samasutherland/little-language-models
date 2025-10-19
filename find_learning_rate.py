@@ -46,7 +46,7 @@ criterion = LOSS_REGISTRY[train_cfg["loss"]](ignore_index=dataset.pad_id)
 peak_frac = train_cfg["warmup_steps"] / train_cfg["total_steps"]
 print(f"peak_frac: {peak_frac}")
 
-train_steps = train_cfg["total_steps"] // 30
+train_steps = train_cfg["total_steps"] // train_cfg["training_time"]
 print(f"train_steps: {train_steps}, warmup_steps: {train_cfg['warmup_steps']}")
 if train_steps < train_cfg["warmup_steps"] * 2:
     print("train steps less than half warmup steps - inaccurate results to follow!")
