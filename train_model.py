@@ -129,7 +129,8 @@ def main():
             with torch.no_grad():
                 val_losses = []
                 for j, val_batch in enumerate(val_loader):
-                    logits = model(val_batch[:, :-1])
+                    x = batch["input_ids"].to(device, non_blocking=True)
+                    logits = model(x[:, :-1])
                     val_loss = criterion(logits.reshape(-1, logits.size(-1)), x[:, 1:].reshape(-1))
                     val_losses.append(val_loss.item())
                     if j == its_per_step * train_cfg["val_batches"]:
@@ -156,13 +157,13 @@ def main():
     run["tokens_per_parameter"] = token_count / total_params
     run["best_loss"] = best_loss
 
-    print("Generating sample...")
-    generated_text = generate_sample(model, dataset, device, train_cfg["test_prompt"], n_words=20, max_new_tokens=100,
-                                     temperature=1.0, top_k=50,
-                                     top_p=0.9)
-    run["final_text_generation"] = generated_text
-
-    print(generated_text)
+    # print("Generating sample...")
+    # generated_text = generate_sample(model, dataset, device, train_cfg["test_prompt"], n_words=20, max_new_tokens=100,
+    #                                  temperature=1.0, top_k=50,
+    #                                  top_p=0.9)
+    # run["final_text_generation"] = generated_text
+    #
+    # print(generated_text)
     run.close()
     # finally:
     #     try:

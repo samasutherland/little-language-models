@@ -33,6 +33,7 @@ def calculate_tokens_per_parameter(num_layers, model_cfg, data_cfg, train_cfg):
     model_cfg["global"]["num_layers"] = num_layers
     model_cfg, data_cfg, train_cfg = find_batch_size(model_cfg, data_cfg, train_cfg)
     model_cfg, data_cfg, train_cfg, tokens_per_param = find_step_count(model_cfg, data_cfg, train_cfg)
+    print(f"num layers {num_layers} gets {tokens_per_param} tokens per parameter.")
     return model_cfg, data_cfg, train_cfg, tokens_per_param
 
 num_layers = 1
@@ -40,7 +41,7 @@ results = {}
 while True:
     model_cfg, data_cfg, train_cfg, tokens_per_param = calculate_tokens_per_parameter(num_layers, model_cfg, data_cfg, train_cfg)
     results[num_layers] = (copy.deepcopy(model_cfg), copy.deepcopy(data_cfg), copy.deepcopy(train_cfg))
-    if tokens_per_param > train_cfg["tokens_per_param"]:
+    if tokens_per_param < train_cfg["tokens_per_param"]:
         break
     num_layers *= 2
 
@@ -53,7 +54,7 @@ while upper_bound - lower_bound > 1:
     model_cfg, data_cfg, train_cfg, tokens_per_param = calculate_tokens_per_parameter(num_layers, model_cfg, data_cfg,
                                                                                       train_cfg)
     results[num_layers] = (copy.deepcopy(model_cfg), copy.deepcopy(data_cfg), copy.deepcopy(train_cfg))
-    if tokens_per_param < train_cfg["tokens_per_param"]:
+    if tokens_per_param > train_cfg["tokens_per_param"]:
         lower_bound = num_layers
     else:
         upper_bound = num_layers
