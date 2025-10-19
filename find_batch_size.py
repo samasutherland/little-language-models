@@ -56,12 +56,21 @@ def find_batch_size(model_cfg, data_cfg, train_cfg):
     print("finding batch size...")
     accumulated_batch_size = train_cfg["accumulated_batch_size"]
     batch_sizes = list(divisors(accumulated_batch_size))[::-1]
+    batch_sizes.insert(0, accumulated_batch_size * 2)
+
+    time_per_step_dict = {}
+    tokens_per_step_dict = {}
+    loss_dict = {}
+
     for i, batch_size in enumerate(batch_sizes):
         try:
             its_per_step = (train_cfg["accumulated_batch_size"] // batch_size) + int(train_cfg["accumulated_batch_size"] % batch_size > 0)
             loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, collate_fn=collate,
                                 num_workers=0, persistent_workers=False)
-            get_step_info(model, device, loader, criterion, optimizer, scheduler, its_per_step, timer_start=0, total_steps=110)
+            time_per_step, tokens_per_step, loss = get_step_info(model, device, loader, criterion, optimizer, scheduler, its_per_step, timer_start=10, total_steps=110)
+            time_per_step_dict[batch_size] = time_per_step
+            tokens_per_step_dict[batch_size] = tokens_per_step
+            loss_dict[batch_size] = loss
             print(f"Batch size {batch_size} passed")
             break
 
@@ -70,12 +79,24 @@ def find_batch_size(model_cfg, data_cfg, train_cfg):
             if batch_size == 1:
                 raise ValueError("Model too big. Batch size 1 causes OOM.")
 
-
+    batch_size = batch_size // 2 # half it - was getting random OOM in the actual training run.
 
     print(f"Final batch size: {batch_size}")
     train_cfg["batch_size"] = batch_size
 
-    return model_cfg, data_cfg, train_cfg
+    time_per_step = time_per_step_dict[batch_size]
+    tokens_per_step = tokens_per_step_dict[batch_size]
+    loss = loss_dict[batch_size]
+
+    total_steps = int((train_cfg["training_time"] * 60) / time_per_step)
+    total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    total_tokens = int(tokens_per_step * total_steps)
+    print(f"Estimated total steps: {total_steps}\n Estimated total tokens: {total_tokens} (tokens/param: {total_tokens / total_params:.2f})")
+
+    train_cfg["total_steps"] = total_steps
+    train_cfg["warmup_steps"] = max(10, total_steps // 100)
+
+    return model_cfg, data_cfg, train_cfg, total_tokens / total_params
 
 
 
