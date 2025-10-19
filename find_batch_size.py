@@ -61,7 +61,7 @@ def find_batch_size(model_cfg, data_cfg, train_cfg):
             its_per_step = (train_cfg["accumulated_batch_size"] // batch_size) + int(train_cfg["accumulated_batch_size"] % batch_size > 0)
             loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, collate_fn=collate,
                                 num_workers=0, persistent_workers=False)
-            get_step_info(model, device, loader, criterion, optimizer, scheduler, its_per_step, timer_start=0, total_steps=20)
+            get_step_info(model, device, loader, criterion, optimizer, scheduler, its_per_step, timer_start=0, total_steps=110)
             print(f"Batch size {batch_size} passed")
             break
 
