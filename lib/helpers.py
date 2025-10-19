@@ -44,14 +44,19 @@ def load_configs():
 
     return model_cfg, data_cfg, train_cfg
 
+def loopy_loader(loader):
+    while True:
+        for batch in loader:
+            yield batch
+
 def get_data_loader(data_cfg, train_cfg, split=None):
     data = load_dataset(data_cfg["dataset"])
     tokenizer_model_path = data_cfg["tokenizer_path"]
     dataset = SimpleStoriesBPEDataset(data[data_cfg["split"] if split is None else split], model_path=tokenizer_model_path, max_length=data_cfg["max_length"])
 
     collate = partial(pad_collate_fn, pad_id=dataset.pad_id)
-    loader = DataLoader(dataset, batch_size=train_cfg["batch_size"], shuffle=True, collate_fn=collate,
-                        num_workers=8, persistent_workers=True, pin_memory=True, prefetch_factor=8)
+    loader = loopy_loader(DataLoader(dataset, batch_size=train_cfg["batch_size"], shuffle=True, collate_fn=collate,
+                        num_workers=8, persistent_workers=True, pin_memory=True, prefetch_factor=8))
 
     vocab_size = dataset.vocab_size
     return dataset, loader, vocab_size
