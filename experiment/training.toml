@@ -8,7 +8,7 @@ test_prompt = "The dog"
 base_lr = 1e-4
 total_steps = 5000
 tokens_per_param = 20
-training_time = 30
+training_time = 60
 val_batches = 1
 val_freq = 20
 
