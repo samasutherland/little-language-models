@@ -124,7 +124,7 @@ def main():
             optimizer.zero_grad()
             its = 0
 
-        if (i * its_per_step) % train_cfg["val_freq"] == 0:
+        if i % (train_cfg["val_freq"] * its_per_step) == 0:
             model.eval()
             with torch.no_grad():
                 val_losses = []
