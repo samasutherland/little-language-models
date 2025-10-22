@@ -54,9 +54,9 @@ def main():
 
 
     if model_cfg["attention"]["project_kv"]:
-        experiment_name = f"dense_transformer:{model_cfg['activation']}"
+        experiment_name = f"dense_transformer:{model_cfg['global']['activation']}"
     else:
-        experiment_name = f"deepseek_transformer:{model_cfg['activation']}"
+        experiment_name = f"deepseek_transformer:{model_cfg['global']['activation']}"
 
     run = Run(experiment = experiment_name)
     run["model_cfg"] = model_cfg
