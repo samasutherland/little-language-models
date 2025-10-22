@@ -64,7 +64,7 @@ def get_data_loader(data_cfg, train_cfg, batch_size=None, split=None, shuffle=Tr
 
     collate = partial(pad_collate_fn, pad_id=dataset.pad_id)
     if num_workers is None:
-        num_workers = os.cpu_count()
+        num_workers = 8#os.cpu_count()
     loader = DataLoader(
         dataset,
         batch_size=batch_size,
