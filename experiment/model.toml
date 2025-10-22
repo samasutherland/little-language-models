@@ -19,7 +19,7 @@ causal = true
 sdpa = true
 
 [activation_kwargs]
-k = 12
+k = 8
 
 [norm]
 type = "RMSNorm"
