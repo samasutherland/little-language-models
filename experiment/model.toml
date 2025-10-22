@@ -7,7 +7,7 @@ num_layers = 8
 embedding_dim = 256
 feedforward_dim = 1024
 max_context = 512
-activation = "SVDEntropicReduction"
+activation = "GELU"
 
 [attention]
 n_heads = 4
@@ -19,7 +19,6 @@ causal = true
 sdpa = true
 
 [activation_kwargs]
-alpha = 2.0
 
 [norm]
 type = "RMSNorm"
