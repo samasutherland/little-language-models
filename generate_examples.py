@@ -8,7 +8,10 @@ device = torch.accelerator.current_accelerator().type if torch.accelerator.is_av
 save_dir = "experiment/checkpoints"
 
 model_cfg, data_cfg, train_cfg = load_configs()
-model_data = torch.load(os.path.join(save_dir, "ckpt_best.pt"), map_location=torch.device('cpu'))
+try:
+    model_data = torch.load(os.path.join(save_dir, "ckpt_final.pt"), map_location=torch.device('cpu'))
+except Exception:
+    model_data = torch.load(os.path.join(save_dir, "ckpt_best_val.pt"), map_location=torch.device('cpu'))
 dataset, loader, vocab_size = get_data_loader(data_cfg, train_cfg)
 model = create_model(model_cfg, vocab_size, device, dataset)
 model.load_state_dict(model_data["model"])

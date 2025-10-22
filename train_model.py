@@ -52,7 +52,11 @@ def main():
     its_per_step = (train_cfg["accumulated_batch_size"] // train_cfg["batch_size"]) + int(train_cfg["accumulated_batch_size"] % train_cfg["batch_size"] > 0)
     scheduler = SCHEDULER_REGISTRY[train_cfg["scheduler"]](optimizer, max_lr=train_cfg["base_lr"], total_steps=train_cfg["total_steps"] // its_per_step, pct_start=peak_frac, div_factor=3., final_div_factor=10.)
 
-    experiment_name = "deepseek_transformer" if model_cfg["attention"]["project_kv"] else "dense_transformer"
+
+    if model_cfg["attention"]["project_kv"]:
+        experiment_name = f"dense_transformer:{model_cfg['activation']}"
+    else:
+        experiment_name = f"deepseek_transformer:{model_cfg['activation']}"
 
     run = Run(experiment = experiment_name)
     run["model_cfg"] = model_cfg
@@ -152,6 +156,9 @@ def main():
 
             break
 
+    print("Saving final weights...")
+    torch.save({"model": model.state_dict(), "optimizer": optimizer.state_dict(),
+                "step": i}, os.path.join(save_dir, "ckpt_final.pt"))
     print("storing token_count and tokens per parameter...")
     run["token_count"] = token_count
     total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)

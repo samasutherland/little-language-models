@@ -62,8 +62,7 @@ def find_batch_size(model_cfg, data_cfg, train_cfg):
     for i, batch_size in enumerate(batch_sizes):
         try:
             its_per_step = (train_cfg["accumulated_batch_size"] // batch_size) + int(train_cfg["accumulated_batch_size"] % batch_size > 0)
-            loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, collate_fn=collate,
-                                num_workers=0, persistent_workers=False)
+            dataset, loader, vocab_size = get_data_loader(data_cfg, train_cfg, batch_size=batch_size, num_workers=0)
             time_per_step, tokens_per_step, loss = get_step_info(model, device, loader, criterion, optimizer, scheduler, its_per_step, timer_start=10, total_steps=110)
 
             print(f"Batch size {batch_size} passed")
@@ -73,6 +72,11 @@ def find_batch_size(model_cfg, data_cfg, train_cfg):
             print(f"Batch size {batch_size} causes OOM")
             if batch_size == 1:
                 raise ValueError("Model too big. Batch size 1 causes OOM.")
+            del loader
+            gc.collect()
+
+    del loader
+    gc.collect()
 
     batch_size = batch_size // 2 # half it - was getting random OOM in the actual training run.
 
@@ -82,10 +86,13 @@ def find_batch_size(model_cfg, data_cfg, train_cfg):
     print(f"Calculating step count")
     its_per_step = (train_cfg["accumulated_batch_size"] // batch_size) + int(
         train_cfg["accumulated_batch_size"] % batch_size > 0)
-    loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, collate_fn=collate,
-                        num_workers=0, persistent_workers=False)
+
+    dataset, loader, vocab_size = get_data_loader(data_cfg, train_cfg, batch_size=batch_size, num_workers=0)
     time_per_step, tokens_per_step, loss = get_step_info(model, device, loader, criterion, optimizer, scheduler,
                                                          its_per_step, timer_start=10, total_steps=110)
+
+    del loader
+    gc.collect()
 
 
     total_steps = int((train_cfg["training_time"] * 60) / time_per_step)

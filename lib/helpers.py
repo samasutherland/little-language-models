@@ -7,6 +7,7 @@ from lib.models import MODEL_REGISTRY
 import time
 from contextlib import nullcontext
 import os
+import weakref
 
 import tomllib
 
@@ -50,15 +51,33 @@ def loopy_loader(loader):
         for batch in loader:
             yield batch
 
-def get_data_loader(data_cfg, train_cfg, split=None):
+def get_data_loader(data_cfg, train_cfg, batch_size=None, split=None, shuffle=True, num_workers=None):
+    if batch_size is None:
+        batch_size = train_cfg["batch_size"]
     data = load_dataset(data_cfg["dataset"])
     tokenizer_model_path = data_cfg["tokenizer_path"]
     dataset = SimpleStoriesBPEDataset(data[data_cfg["split"] if split is None else split], model_path=tokenizer_model_path, max_length=data_cfg["max_length"])
 
     collate = partial(pad_collate_fn, pad_id=dataset.pad_id)
-    num_workers = os.cpu_count()
-    loader = loopy_loader(DataLoader(dataset, batch_size=train_cfg["batch_size"], shuffle=True, collate_fn=collate,
-                        num_workers=num_workers, persistent_workers=True, pin_memory=True, prefetch_factor=8))
+    if num_workers is None:
+        num_workers = os.cpu_count()
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, collate_fn=collate,
+                        num_workers=num_workers, persistent_workers=True, pin_memory=True, prefetch_factor=8)
+
+
+    def _finalizer(wr):
+        obj = wr()
+        if obj is not None:
+            it = getattr(obj, "_iterator", None)
+            if it is not None:
+                try:
+                    it._shutdown_workers()
+                except Exception:
+                    pass
+    weakref.finalize(loader, _finalizer, weakref.ref(loader))
+
+    loader = loopy_loader(loader)
+    setattr(loader, "_underlying_dataloader", loader)
 
     vocab_size = dataset.vocab_size
     return dataset, loader, vocab_size

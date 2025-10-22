@@ -18,6 +18,7 @@ v_dim = 64
 causal = true
 sdpa = true
 
+[activation_kwargs]
 
 [norm]
 type = "RMSNorm"

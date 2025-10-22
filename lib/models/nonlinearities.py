@@ -20,8 +20,8 @@ class SVDTruncation(Module):
         k (int, optional): Number of singular values to keep.
 
     Shape:
-        - Input: (Batches, Features)
-        - Output: (Batches, Features)
+        - Input: (..., Features)
+        - Output: (..., Features)
     """
     def __init__(self, eps=None, k=None) -> None:
         super().__init__()
@@ -33,18 +33,19 @@ class SVDTruncation(Module):
 
 
     def forward(self, input: Tensor) -> Tensor:
-        targ_shape = closest_square(*input.shape)
+        flattened_input = input.reshape(-1, input.shape[-1])
+        targ_shape = closest_square(*flattened_input.shape)
 
-        A = input.reshape(targ_shape)
-        U, S, Vh = torch.linalg.svd(A, full_matrices=False)
+        A = flattened_input.reshape(targ_shape)
+        U, S, Vh = torch.linalg.svd(A.float(), full_matrices=False)
         mask = torch.ones_like(S)
         if self.k is not None:
             mask[:,self.k:] = 0
         if self.eps is not None:
-            mask[S < self.eps] = 0
+            mask[S < (self.eps * S.max())] = 0
 
         S = S * mask
-        return torch.bmm(U * S.unsqueeze(-2), Vh).reshape(input.shape)
+        return torch.bmm(U * S.unsqueeze(-2), Vh).reshape(input.shape).to(dtype=input.dtype)
 
 
 class SVDEntropicReduction(Module):
@@ -61,22 +62,24 @@ class SVDEntropicReduction(Module):
             Default: ``None``
 
     Shape:
-        - Input: (Batches, Features)
-        - Output: (Batches, Features)
+        - Input: (..., Features)
+        - Output: (..., Features)
     """
     def __init__(self, alpha) -> None:
         super().__init__()
+        assert alpha > 1
         self.alpha = alpha
 
 
     def forward(self, input: Tensor) -> Tensor:
-        targ_shape = closest_square(*input.shape)
+        flattened_input = input.reshape(-1, input.shape[-1])
+        targ_shape = closest_square(*flattened_input.shape)
 
-        A = input.reshape(targ_shape)
-        U, S, Vh = torch.linalg.svd(A, full_matrices=False)
+        A = flattened_input.reshape(targ_shape)
+        U, S, Vh = torch.linalg.svd(A.float(), full_matrices=False)
 
         u = torch.pow(S, self.alpha)
-        S = u * torch.linalg.norm(S, dim=-1, keepdim=True) / torch.linalg.norm(u, dim=-1, keepdim=True)
+        S = u * torch.linalg.norm(S, dim=-1, keepdim=True) / torch.linalg.norm(u, dim=-1, keepdim=True).clamp_min(1e-12)
 
 
-        return torch.bmm(U * S.unsqueeze(-2), Vh).reshape(input.shape)
+        return torch.bmm(U * S.unsqueeze(-2), Vh).reshape(input.shape).to(dtype=input.dtype)

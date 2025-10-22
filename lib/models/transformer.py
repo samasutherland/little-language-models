@@ -1,9 +1,10 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
+from .nonlinearities import SVDEntropicReduction, SVDTruncation
 
 NORM_REGISTRY = {"RMSNorm": nn.RMSNorm}
-ACTIVATION_REGISTRY = {"GELU": nn.GELU}
+ACTIVATION_REGISTRY = {"GELU": nn.GELU, "SVDEntropicReduction": SVDEntropicReduction, "SVDTruncation": SVDTruncation}
 
 
 class RoPETransform(nn.Module):
@@ -115,7 +116,7 @@ class MaskedMultiHeadLatentRoPESelfAttention(nn.Module):
                                                          self.v_dim * self.n_heads))  # batch, seq, embedding_dim
 
 class TransformerLayer(nn.Module):
-    def __init__(self, global_kwargs, attention_kwargs, dropout_kwargs, norm_kwargs, rope_kwargs, norm):
+    def __init__(self, global_kwargs, attention_kwargs, dropout_kwargs, norm_kwargs, rope_kwargs, activation_kwargs, norm):
         super().__init__()
 
         self.attn_norm = norm(global_kwargs["embedding_dim"], **norm_kwargs)
@@ -126,7 +127,7 @@ class TransformerLayer(nn.Module):
 
         self.attention = MaskedMultiHeadLatentRoPESelfAttention(embedding_dim=global_kwargs["embedding_dim"], max_context=global_kwargs["max_context"], dropout=dropout_kwargs["attn_dropout"], rope_kwargs=rope_kwargs, **attention_kwargs)
 
-        self.ffn = nn.Sequential(nn.Linear(global_kwargs["embedding_dim"], global_kwargs["feedforward_dim"]), ACTIVATION_REGISTRY[global_kwargs["activation"]](), self.ffn_dropout, nn.Linear(global_kwargs["feedforward_dim"], global_kwargs["embedding_dim"]))
+        self.ffn = nn.Sequential(nn.Linear(global_kwargs["embedding_dim"], global_kwargs["feedforward_dim"]), ACTIVATION_REGISTRY[global_kwargs["activation"]](**activation_kwargs), self.ffn_dropout, nn.Linear(global_kwargs["feedforward_dim"], global_kwargs["embedding_dim"]))
 
 
     def forward(self, x):
@@ -144,13 +145,14 @@ class Transformer(nn.Module):
         norm_kwargs = model_kwargs["norm"]
         dropout_kwargs = model_kwargs["dropout"]
         rope_kwargs = model_kwargs["rope"]
+        activation_kwargs = model_kwargs["activation_kwargs"]
 
         norm = NORM_REGISTRY[norm_kwargs["type"]]
         updated_norm_kwargs = {key: val for key, val in norm_kwargs.items() if key != "type"}
 
 
         self.embedding = nn.Embedding(global_kwargs["vocab_size"], global_kwargs["embedding_dim"], padding_idx=global_kwargs.get("padding_idx", 3))
-        self.transformer_stack = nn.Sequential(*[TransformerLayer(global_kwargs, attention_kwargs, dropout_kwargs, updated_norm_kwargs, rope_kwargs, norm) for _ in range(global_kwargs["num_layers"])])
+        self.transformer_stack = nn.Sequential(*[TransformerLayer(global_kwargs, attention_kwargs, dropout_kwargs, updated_norm_kwargs, rope_kwargs, activation_kwargs, norm) for _ in range(global_kwargs["num_layers"])])
 
 
         self.final_norm = norm(global_kwargs["embedding_dim"], **{} if updated_norm_kwargs is None else updated_norm_kwargs)
