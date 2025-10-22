@@ -71,8 +71,8 @@ def get_data_loader(data_cfg, train_cfg, batch_size=None, split=None, shuffle=Tr
         shuffle=shuffle,
         collate_fn=collate,
         num_workers=num_workers,
-        persistent_workers=True,
-        pin_memory=True if num_workers > 1 else False,
+        persistent_workers=True if num_workers > 1 else False,
+        pin_memory=True,
         prefetch_factor=8 if num_workers > 1 else None
     )
 
