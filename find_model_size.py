@@ -44,12 +44,14 @@ def calculate_tokens_per_parameter(num_layers, model_cfg, data_cfg, train_cfg):
 
 num_layers = 1
 results = {}
+targ_dists = {}
 while True:
     model_cfg, data_cfg, train_cfg, tokens_per_param = calculate_tokens_per_parameter(num_layers, model_cfg, data_cfg, train_cfg)
     torch.cuda.synchronize()
     torch.cuda.empty_cache()
     gc.collect()
     results[num_layers] = (copy.deepcopy(model_cfg), copy.deepcopy(data_cfg), copy.deepcopy(train_cfg))
+    targ_dists[num_layers] = abs(train_cfg["tokens_per_param"] - tokens_per_param)
     if tokens_per_param < train_cfg["tokens_per_param"]:
         break
     num_layers *= 2
@@ -62,6 +64,7 @@ while upper_bound - lower_bound > 1:
     num_layers = lower_bound + (upper_bound - lower_bound) // 2
     model_cfg, data_cfg, train_cfg, tokens_per_param = calculate_tokens_per_parameter(num_layers, model_cfg, data_cfg,
                                                                                       train_cfg)
+    targ_dists[num_layers] = abs(train_cfg["tokens_per_param"] - tokens_per_param)
     torch.cuda.synchronize()
     torch.cuda.empty_cache()
     gc.collect()
@@ -71,8 +74,9 @@ while upper_bound - lower_bound > 1:
     else:
         upper_bound = num_layers
 
-print(f"final num layers: {upper_bound}")
-model_cfg, data_cfg, train_cfg = results[upper_bound] # prefer slightly overparameterised
+best_num_layers = min(targ_dists, key=targ_dists.get)
+print(f"final num layers: {best_num_layers}")
+model_cfg, data_cfg, train_cfg = results[best_num_layers]
 model_cfg_path.write_text(dumps(model_cfg), encoding="utf-8")
 data_cfg_path.write_text(dumps(data_cfg), encoding="utf-8")
 train_cfg_path.write_text(dumps(train_cfg), encoding="utf-8")
