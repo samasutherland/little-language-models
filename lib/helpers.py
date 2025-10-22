@@ -6,6 +6,7 @@ from data.datasets import SimpleStoriesBPEDataset
 from lib.models import MODEL_REGISTRY
 import time
 from contextlib import nullcontext
+import os
 
 import tomllib
 
@@ -55,8 +56,9 @@ def get_data_loader(data_cfg, train_cfg, split=None):
     dataset = SimpleStoriesBPEDataset(data[data_cfg["split"] if split is None else split], model_path=tokenizer_model_path, max_length=data_cfg["max_length"])
 
     collate = partial(pad_collate_fn, pad_id=dataset.pad_id)
+    num_workers = os.cpu_count()
     loader = loopy_loader(DataLoader(dataset, batch_size=train_cfg["batch_size"], shuffle=True, collate_fn=collate,
-                        num_workers=8, persistent_workers=True, pin_memory=True, prefetch_factor=8))
+                        num_workers=num_workers, persistent_workers=True, pin_memory=True, prefetch_factor=8))
 
     vocab_size = dataset.vocab_size
     return dataset, loader, vocab_size

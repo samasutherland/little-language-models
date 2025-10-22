@@ -1,6 +1,15 @@
 from torch.nn import Module
 from torch import Tensor
 import torch
+from functools import cache
+
+@cache
+def closest_square(batches, features):
+    divisor = int(features ** 0.5)
+    while features % divisor != 0:
+        divisor -= 1
+
+    return (batches, divisor, features // divisor)
 
 class SVDTruncation(Module):
     r"""Truncates the singular values of a reshaped vector using SVD. Truncates via singular value count or via thresholding.
@@ -21,36 +30,53 @@ class SVDTruncation(Module):
 
         self.eps = eps
         self.k = k
-        self.targ_shape = None
 
-    def get_targ_shape(self, input_shape):
-        batches, features = input_shape
-        divisor = torch.floor(torch.sqrt(features))
-        while features % divisor != 0:
-            divisor -= 1
-
-        self.targ_shape = (batches, divisor, features//divisor)
 
     def forward(self, input: Tensor) -> Tensor:
-        if self.targ_shape is None:
-            self.get_targ_shape(input.shape)
+        targ_shape = closest_square(*input.shape)
 
-        A = input.reshape(self.targ_shape)
-        U, S, V = torch.linalg.svd(A)
-        mask = torch.ones(S.shape)
+        A = input.reshape(targ_shape)
+        U, S, Vh = torch.linalg.svd(A, full_matrices=False)
+        mask = torch.ones_like(S)
         if self.k is not None:
             mask[:,self.k:] = 0
         if self.eps is not None:
             mask[S < self.eps] = 0
 
         S = S * mask
-        return torch.bmm(U, torch.bmm(torch.diag_embed(S), V.T)).reshape(input.shape)
+        return torch.bmm(U * S.unsqueeze(-2), Vh).reshape(input.shape)
 
 
-# class EntropicReduction(Module):
-#
-#     def __init__(self) -> None:
-#         super().__init__()
-#
-#
-#     def forward(self, input: Tensor) -> Tensor:
+class SVDEntropicReduction(Module):
+    r"""Reduces the entropy of the singular values of a reshaped vector using SVD.
+    Modifies the singular values with via:
+    u_i = x_i^\alpha
+    x'_i = u_i * norm(x) / norm(u)
+
+    This conserves the frobenius norm, but pushes weight from the lower end of the spectrum to the upper end,
+    hence decreasing the entropy.
+
+    Args:
+        alha (float, required): Strength of the entropic reduction. must be >1:
+            Default: ``None``
+
+    Shape:
+        - Input: (Batches, Features)
+        - Output: (Batches, Features)
+    """
+    def __init__(self, alpha) -> None:
+        super().__init__()
+        self.alpha = alpha
+
+
+    def forward(self, input: Tensor) -> Tensor:
+        targ_shape = closest_square(*input.shape)
+
+        A = input.reshape(targ_shape)
+        U, S, Vh = torch.linalg.svd(A, full_matrices=False)
+
+        u = torch.pow(S, self.alpha)
+        S = u * torch.linalg.norm(S, dim=-1, keepdim=True) / torch.linalg.norm(u, dim=-1, keepdim=True)
+
+
+        return torch.bmm(U * S.unsqueeze(-2), Vh).reshape(input.shape)

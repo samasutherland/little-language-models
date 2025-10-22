@@ -50,8 +50,9 @@ def find_step_count(model_cfg, data_cfg, train_cfg):
     print("Finding Step Count...")
 
     its_per_step = (train_cfg["accumulated_batch_size"] // train_cfg["batch_size"]) + (train_cfg["accumulated_batch_size"] % train_cfg["batch_size"] > 0)
+    num_workers = os.cpu_count()
     loader = DataLoader(dataset, batch_size=train_cfg["batch_size"], shuffle=True, collate_fn=collate,
-                        num_workers=8, persistent_workers=False)
+                        num_workers=num_workers, persistent_workers=False)
     time_per_step, tokens_per_step, loss = get_step_info(model, device, loader, criterion, optimizer, scheduler, its_per_step, timer_start=10, total_steps=110)
 
     total_steps = int((train_cfg["training_time"] * 60) / time_per_step)

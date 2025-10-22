@@ -63,8 +63,9 @@ last_loss = torch.inf
 for lr in lrs:
     torch.manual_seed(42)
     model = create_model(model_cfg, vocab_size, device, dataset)
+    num_workers = os.cpu_count()
     loader = DataLoader(dataset, batch_size=train_cfg["batch_size"], shuffle=True, collate_fn=collate,
-                        num_workers=8, persistent_workers=False)
+                        num_workers=num_workers, persistent_workers=False)
     decay, no_decay = [], []
     for n, p in model.named_parameters():
         if p.ndim == 1 or n.endswith("bias") or "norm" in n.lower():
