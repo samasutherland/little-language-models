@@ -19,9 +19,9 @@ causal = true
 sdpa = true
 
 [activation_kwargs]
-alpha = 2.0
 
 [norm]
+type = "RMSNorm"
 
 [dropout]
 attn_dropout = 0.0
