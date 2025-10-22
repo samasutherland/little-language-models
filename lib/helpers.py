@@ -56,28 +56,44 @@ def get_data_loader(data_cfg, train_cfg, batch_size=None, split=None, shuffle=Tr
         batch_size = train_cfg["batch_size"]
     data = load_dataset(data_cfg["dataset"])
     tokenizer_model_path = data_cfg["tokenizer_path"]
-    dataset = SimpleStoriesBPEDataset(data[data_cfg["split"] if split is None else split], model_path=tokenizer_model_path, max_length=data_cfg["max_length"])
+    dataset = SimpleStoriesBPEDataset(
+        data[data_cfg["split"] if split is None else split],
+        model_path=tokenizer_model_path,
+        max_length=data_cfg["max_length"]
+    )
 
     collate = partial(pad_collate_fn, pad_id=dataset.pad_id)
     if num_workers is None:
         num_workers = os.cpu_count()
-    loader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, collate_fn=collate,
-                        num_workers=num_workers, persistent_workers=True, pin_memory=True, prefetch_factor=8)
+    loader = DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=shuffle,
+        collate_fn=collate,
+        num_workers=num_workers,
+        persistent_workers=True,
+        pin_memory=True,
+        prefetch_factor=8 if num_workers > 1 else None
+    )
 
+    def _finalizer(dataloader):
+        it = getattr(dataloader, "_iterator", None)
+        if it is not None:
+            try:
+                it._shutdown_workers()
+            except Exception:
+                pass
 
-    def _finalizer(wr):
-        obj = wr()
-        if obj is not None:
-            it = getattr(obj, "_iterator", None)
-            if it is not None:
-                try:
-                    it._shutdown_workers()
-                except Exception:
-                    pass
-    weakref.finalize(loader, _finalizer, weakref.ref(loader))
+    class _LoopingWrapper:
+        def __init__(self, dataloader):
+            self._underlying_dataloader = dataloader
+            self._gen = loopy_loader(dataloader)
+        def __iter__(self):
+            return self._gen
 
-    loader = loopy_loader(loader)
-    setattr(loader, "_underlying_dataloader", loader)
+    import weakref
+    loader = _LoopingWrapper(loader)
+    weakref.finalize(loader, _finalizer, loader._underlying_dataloader)
 
     vocab_size = dataset.vocab_size
     return dataset, loader, vocab_size
