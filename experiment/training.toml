@@ -1,19 +1,19 @@
 # Training hyperparameters
 
-batch_size = 1
+batch_size = 64
 accumulated_batch_size = 256
 loss = "CrossEntropyLoss"
 optimizer = "AdamW"
 test_prompt = "The dog"
-base_lr = 1e-4
-total_steps = 5000
+base_lr = 0.0046353708021342754
+total_steps = 12914
 tokens_per_param = 20
 training_time = 30
 val_batches = 1
 val_freq = 20
 
 scheduler = "OneCycleLR"
-warmup_steps = 50
+warmup_steps = 129
 weight_decay = 0.02
 
 [scheduler_kwargs]
