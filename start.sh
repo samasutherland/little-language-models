@@ -10,14 +10,13 @@ fi
 exec > >(tee "/workspace/experiment/stdout.log")
 exec 2> >(tee "/workspace/experiment/stderr.log" >&2)
 
-#echo "Finding Model Size..."
-#python3 find_model_size.py
+echo "Finding Model Size..."
+python3 find_model_size.py
 
 echo "Finding Learning Rate..."
 python3 find_learning_rate.py
 
-#timeout -k 10m 30m python3 train_model.py
-python3 train_model.py
+timeout -k 10m 30m python3 train_model.py
 rc=$?
 echo "train_model.py exited with $rc"
 sync

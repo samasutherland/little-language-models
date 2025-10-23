@@ -47,6 +47,36 @@ class SVDTruncation(Module):
         S = S * mask
         return torch.bmm(U * S.unsqueeze(-2), Vh).reshape(input.shape).to(dtype=input.dtype)
 
+class QRTruncation(Module):
+    r"""Truncates the rank of a reshaped vector using QR.
+
+    Args:
+        k (int, optional): Rank of output.
+
+    Shape:
+        - Input: (..., Features)
+        - Output: (..., Features)
+    """
+    def __init__(self, k=None) -> None:
+        super().__init__()
+        if k is None:
+            raise ValueError("Need to specify either eps or k")
+        self.k = k
+
+    def forward(self, input: Tensor) -> Tensor:
+        flattened_input = input.reshape(-1, input.shape[-1])
+        targ_shape = closest_square(*flattened_input.shape)
+
+        A = flattened_input.reshape(targ_shape)
+        omega = torch.randn(targ_shape[0], targ_shape[-1], self.k, device=input.device, dtype=input.dtype)
+        Y = torch.bmm(A, omega)
+        Q, _ = torch.linalg.qr(Y, mode='reduced')
+
+        output = torch.bmm(Q, torch.bmm(Q.mT, A))
+
+        return output.reshape(input.shape).to(dtype=input.dtype)
+
+
 
 class SVDEntropicReduction(Module):
     r"""Reduces the entropy of the singular values of a reshaped vector using SVD.

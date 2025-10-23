@@ -1,10 +1,10 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
-from .nonlinearities import SVDEntropicReduction, SVDTruncation
+from .nonlinearities import SVDEntropicReduction, SVDTruncation, QRTruncation
 
 NORM_REGISTRY = {"RMSNorm": nn.RMSNorm}
-ACTIVATION_REGISTRY = {"GELU": nn.GELU, "SVDEntropicReduction": SVDEntropicReduction, "SVDTruncation": SVDTruncation}
+ACTIVATION_REGISTRY = {"GELU": nn.GELU, "SVDEntropicReduction": SVDEntropicReduction, "SVDTruncation": SVDTruncation, "QRTruncation": QRTruncation}
 
 
 class RoPETransform(nn.Module):
