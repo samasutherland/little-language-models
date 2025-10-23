@@ -7,7 +7,7 @@ num_layers = 8
 embedding_dim = 256
 feedforward_dim = 1024
 max_context = 512
-activation = "Identity"
+activation = "SVDTruncation"
 
 [attention]
 n_heads = 4
@@ -19,6 +19,7 @@ causal = true
 sdpa = true
 
 [activation_kwargs]
+eps = 0.01
 
 [norm]
 type = "RMSNorm"

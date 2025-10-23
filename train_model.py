@@ -83,6 +83,7 @@ def main():
 
 
     its = 0
+    step_scheduler = True
 
     for i, batch in enumerate(loader):
         x = batch["input_ids"].to(device, non_blocking=True)
@@ -97,7 +98,8 @@ def main():
 
         loss_buffer = push_to_buffer(loss.item())
 
-        current_lr = scheduler.get_last_lr()[0]
+        if step_scheduler:
+            current_lr = scheduler.get_last_lr()[0]
         run.track(loss.item(), name="loss", step=i, context={"subset": "train"})
         if not torch.isfinite(loss):
             pass
@@ -127,7 +129,12 @@ def main():
                     param.grad = torch.nan_to_num(param.grad, nan=0.0)
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             optimizer.step()
-            scheduler.step()
+            if step_scheduler:
+                try:
+                    scheduler.step()
+                except ValueError:
+                    print("Scheduler stopped stepping.")
+                    step_scheduler = False
             optimizer.zero_grad()
             its = 0
 
