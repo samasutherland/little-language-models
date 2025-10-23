@@ -42,7 +42,7 @@ def calculate_tokens_per_parameter(num_layers, model_cfg, data_cfg, train_cfg):
     print(f"num layers {num_layers} gets {tokens_per_param} tokens per parameter.")
     return model_cfg, data_cfg, train_cfg, tokens_per_param
 
-num_layers = 1
+num_layers = 8
 results = {}
 targ_dists = {}
 while True:
