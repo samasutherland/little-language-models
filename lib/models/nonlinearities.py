@@ -57,7 +57,7 @@ class QRTruncation(Module):
         - Input: (..., Features)
         - Output: (..., Features)
     """
-    def __init__(self, k=None) -> None:
+    def __init__(self, k: int=None) -> None:
         super().__init__()
         if k is None:
             raise ValueError("Need to specify either eps or k")
@@ -67,8 +67,8 @@ class QRTruncation(Module):
         flattened_input = input.reshape(-1, input.shape[-1])
         targ_shape = closest_square(*flattened_input.shape)
 
-        A = flattened_input.reshape(targ_shape)
-        omega = torch.randn(targ_shape[0], targ_shape[-1], self.k, device=input.device, dtype=input.dtype)
+        A = flattened_input.reshape(targ_shape).float()
+        omega = torch.randn(targ_shape[0], targ_shape[-1], self.k, device=A.device, dtype=A.dtype)
         Y = torch.bmm(A, omega)
         Q, _ = torch.linalg.qr(Y, mode='reduced')
 
