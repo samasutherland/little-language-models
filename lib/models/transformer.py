@@ -32,7 +32,7 @@ class RoPETransform(nn.Module):
         return x_rotated
 
 class MaskedMultiHeadLatentRoPESelfAttention(nn.Module):
-    def __init__(self, embedding_dim=384, project_kv=True, projection_dim=128, qk_dim=64, v_dim=64, causal=True, max_context=100, n_heads=6, sdpa=False, dropout=0.1, rope_kwargs=None):
+    def __init__(self, embedding_dim=384, project_kv=True, projection_dim=128, qk_dim=64, v_dim=64, causal=True, max_context=100, n_heads=6, sdpa=False, dropout=0.1, rope_kwargs=None, reproject=True):
         super().__init__()
         self.embedding_dim = embedding_dim
         self.qk_dim = qk_dim
@@ -81,7 +81,10 @@ class MaskedMultiHeadLatentRoPESelfAttention(nn.Module):
             mask = torch.zeros(max_context, max_context)
             self.register_buffer("mask_array", mask.masked_fill(~torch.tril(torch.ones(max_context, max_context, dtype=torch.bool)), float("-inf")))
 
-        # self.reproject = nn.Linear(n_heads * v_dim, embedding_dim)
+        if n_heads * v_dim != embedding_dim or reproject:
+            self.reproject = nn.Linear(n_heads * v_dim, embedding_dim)
+        else:
+            self.reproject = nn.Identity()
 
     def forward(self, x):
 
@@ -111,11 +114,10 @@ class MaskedMultiHeadLatentRoPESelfAttention(nn.Module):
                 attn_probs = self.dropout_layer(attn_probs)
             attn_output = attn_probs @ v  # batch, n_heads, seq, v_dim
 
-        #TODO: this reshape copies data. view would be better if I can get the shapes to work.
-        # return self.reproject(attn_output.transpose(1, 2).reshape(batch_dim, seq_len,
-        #                                                  self.v_dim * self.n_heads))  # batch, seq, embedding_dim
-        return attn_output.transpose(1, 2).reshape(batch_dim, seq_len,
-                                                                  self.v_dim * self.n_heads) # batch, seq, n_heads * v_dim
+        # TODO: this reshape copies data. view would be better if I can get the shapes to work.
+
+        return self.reproject(attn_output.transpose(1, 2).reshape(batch_dim, seq_len,
+                                                         self.v_dim * self.n_heads))  # batch, seq, embedding_dim
 
 class TransformerLayer(nn.Module):
     def __init__(self, global_kwargs, attention_kwargs, dropout_kwargs, norm_kwargs, rope_kwargs, activation_kwargs, norm):
@@ -129,16 +131,10 @@ class TransformerLayer(nn.Module):
 
         self.attention = MaskedMultiHeadLatentRoPESelfAttention(embedding_dim=global_kwargs["embedding_dim"], max_context=global_kwargs["max_context"], dropout=dropout_kwargs["attn_dropout"], rope_kwargs=rope_kwargs, **attention_kwargs)
 
-        n_heads = attention_kwargs["n_heads"]
-        v_dim = attention_kwargs["v_dim"]
-
         if global_kwargs["activation"] == "Identity":
-            if n_heads * v_dim == global_kwargs["embedding_dim"]:
-                self.ffn = nn.Identity() # Identity activation collapses ff layers to no-op.
-            else:
-                self.ffn = nn.Linear(n_heads * v_dim, global_kwargs["embedding_dim"])
+            self.ffn = nn.Identity() # Identity activation collapses ff layers to no-op.
         else:
-            self.ffn = nn.Sequential(nn.Linear(n_heads * v_dim, global_kwargs["feedforward_dim"]),
+            self.ffn = nn.Sequential(nn.Linear(global_kwargs["embedding_dim"], global_kwargs["feedforward_dim"]),
                                      ACTIVATION_REGISTRY[global_kwargs["activation"]](**activation_kwargs),
                                      self.ffn_dropout,
                                      nn.Linear(global_kwargs["feedforward_dim"], global_kwargs["embedding_dim"]))

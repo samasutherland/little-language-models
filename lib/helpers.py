@@ -130,6 +130,9 @@ def get_step_info(model, device, loader, criterion, optimizer, scheduler, its_pe
         loss.backward()
         its += 1
         if its == its_per_step:
+            for param in model.parameters():
+                if param.grad is not None:
+                    param.grad = torch.nan_to_num(param.grad, nan=0.0)
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             optimizer.step()
             scheduler.step()
