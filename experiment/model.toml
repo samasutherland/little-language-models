@@ -7,11 +7,11 @@ num_layers = 8
 embedding_dim = 256
 feedforward_dim = 1024
 max_context = 512
-activation = "GELU"
+activation = "Identity"
 
 [attention]
 n_heads = 4
-project_kv = true
+project_kv = false
 projection_dim = 64
 qk_dim = 64
 v_dim = 64
