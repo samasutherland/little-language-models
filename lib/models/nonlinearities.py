@@ -2,6 +2,7 @@ from torch.nn import Module
 from torch import Tensor
 import torch
 from functools import cache
+from torch.cuda.amp import autocast
 
 @cache
 def closest_square(batches, features):
@@ -67,12 +68,13 @@ class QRTruncation(Module):
         flattened_input = input.reshape(-1, input.shape[-1])
         targ_shape = closest_square(*flattened_input.shape)
 
-        A = flattened_input.reshape(targ_shape).float()
-        omega = torch.randn(targ_shape[0], targ_shape[-1], self.k, device=A.device, dtype=A.dtype)
-        Y = torch.bmm(A, omega)
-        Q, _ = torch.linalg.qr(Y, mode='reduced')
+        with autocast(enabled=False):
+            A = flattened_input.reshape(targ_shape).float()
+            omega = torch.randn(targ_shape[0], targ_shape[-1], self.k, device=A.device, dtype=A.dtype)
+            Y = torch.bmm(A, omega)
+            Q, _ = torch.linalg.qr(Y, mode='reduced')
 
-        output = torch.bmm(Q, torch.bmm(Q.mT, A))
+            output = torch.bmm(Q, torch.bmm(Q.mT, A))
 
         return output.reshape(input.shape).to(dtype=input.dtype)
 
