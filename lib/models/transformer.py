@@ -127,7 +127,13 @@ class TransformerLayer(nn.Module):
 
         self.attention = MaskedMultiHeadLatentRoPESelfAttention(embedding_dim=global_kwargs["embedding_dim"], max_context=global_kwargs["max_context"], dropout=dropout_kwargs["attn_dropout"], rope_kwargs=rope_kwargs, **attention_kwargs)
 
-        self.ffn = nn.Sequential(nn.Linear(global_kwargs["embedding_dim"], global_kwargs["feedforward_dim"]), ACTIVATION_REGISTRY[global_kwargs["activation"]](**activation_kwargs), self.ffn_dropout, nn.Linear(global_kwargs["feedforward_dim"], global_kwargs["embedding_dim"]))
+        if global_kwargs["activation"] == "Identity":
+            self.ffn = nn.Identity() # Identity activation collapses ff layers to no-op.
+        else:
+            self.ffn = nn.Sequential(nn.Linear(global_kwargs["embedding_dim"], global_kwargs["feedforward_dim"]),
+                                     ACTIVATION_REGISTRY[global_kwargs["activation"]](**activation_kwargs),
+                                     self.ffn_dropout,
+                                     nn.Linear(global_kwargs["feedforward_dim"], global_kwargs["embedding_dim"]))
 
 
     def forward(self, x):
