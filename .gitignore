@@ -4,3 +4,5 @@
 checkpoints/
 **/__pycache__/
 .aim/
+.aimtool/
+aim_repos*

@@ -6,7 +6,7 @@ import time
 import math
 import tomllib
 import uuid
-from lib.helpers import generate_sample, pad_collate_fn, load_configs, get_data_loader, create_model
+from lib.utils import generate_sample, pad_collate_fn, load_configs, get_data_loader, create_model
 from contextlib import nullcontext
 
 LOSS_REGISTRY = {"CrossEntropyLoss": torch.nn.CrossEntropyLoss}
@@ -30,7 +30,7 @@ def main():
     criterion = LOSS_REGISTRY[train_cfg["loss"]](ignore_index=dataset.pad_id)
 
 
-    save_dir = "experiment/checkpoints"
+    save_dir = "configs/checkpoints"
     os.makedirs(save_dir, exist_ok=True)
     best_loss = float("inf")
     best_val_loss = float("inf")
@@ -53,7 +53,7 @@ def main():
     scheduler = SCHEDULER_REGISTRY[train_cfg["scheduler"]](optimizer, max_lr=train_cfg["base_lr"], total_steps=train_cfg["total_steps"] // its_per_step, pct_start=peak_frac, div_factor=3., final_div_factor=10.)
 
 
-    if model_cfg["attention"]["project_kv"]:
+    if not model_cfg["attention"]["project_kv"]:
         experiment_name = f"dense_transformer:{model_cfg['global']['activation']}"
     else:
         experiment_name = f"deepseek_transformer:{model_cfg['global']['activation']}"

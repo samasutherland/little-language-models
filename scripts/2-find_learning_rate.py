@@ -4,7 +4,7 @@ from torch.utils.data import DataLoader
 import time
 import copy
 import gc
-from lib.helpers import generate_sample, pad_collate_fn, load_configs, get_data_loader, create_model, get_step_info
+from lib.utils import generate_sample, pad_collate_fn, load_configs, get_data_loader, create_model, get_step_info
 from pathlib import Path
 from tomlkit import parse, dumps
 from functools import partial
@@ -19,9 +19,9 @@ SCHEDULER_REGISTRY = {"OneCycleLR": OneCycleLR, "Cosine": CosineAnnealingLR}
 
 
 print("loading configs...")
-model_cfg_path = Path("experiment/model.toml")
-data_cfg_path = Path("experiment/data.toml")
-train_cfg_path = Path("experiment/training.toml")
+model_cfg_path = Path("configs/model.toml")
+data_cfg_path = Path("configs/data.toml")
+train_cfg_path = Path("configs/training.toml")
 
 model_cfg = parse(model_cfg_path.read_text(encoding="utf-8"))
 data_cfg = parse(data_cfg_path.read_text(encoding="utf-8"))

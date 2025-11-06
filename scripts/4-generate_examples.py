@@ -1,11 +1,11 @@
 import torch
 import tomllib
-from lib.helpers import generate_sample, pad_collate_fn, load_configs, get_data_loader, create_model
+from lib.utils import generate_sample, pad_collate_fn, load_configs, get_data_loader, create_model
 import os
 
 
 device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
-save_dir = "experiment/checkpoints"
+save_dir = "configs/checkpoints"
 
 model_cfg, data_cfg, train_cfg = load_configs()
 try:
@@ -20,7 +20,7 @@ examples = []
 for opener in ["the dog ", "sam went ", "caitlin pooped on the ", "jayden had a jolly good time ", "a spaceship landed in the forest ", "trees swayed "]:
     examples.append(generate_sample(model, dataset, device, opener, n_words=100, max_new_tokens=100, temperature=0.0))
 
-with open("experiment/examples.txt", "w") as f:
+with open("configs/examples.txt", "w") as f:
     for example in examples:
         f.write(f"{example}\n\n")
 
