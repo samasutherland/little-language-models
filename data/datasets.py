@@ -1,7 +1,5 @@
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset
 import sentencepiece as spm
-
-import pickle
 import torch
 
 # Top-level wrapper so it's picklable
@@ -25,7 +23,6 @@ class SimpleStoriesBPEDataset(Dataset):
     def __init__(self, hf_split, model_path="data/tokenizers/unigram_4K.model", max_length=None):
         self.model_path = model_path
 
-        # create tokenizer in the main process
         self.tok = _TokWrap(model_path)
         self.ds = hf_split
         self.max_length = max_length
@@ -50,10 +47,8 @@ class SimpleStoriesBPEDataset(Dataset):
     def vocab_size(self):
         return self.tok.vocab_size
 
-    # Make dataset picklable for multiprocessing workers (spawn)
     def __getstate__(self):
         state = self.__dict__.copy()
-        # don't try to pickle tokenizer objects; rebuild in the worker
         state["tok"] = None
         return state
 
@@ -66,7 +61,6 @@ class SimpleStoriesBPEDataset(Dataset):
         return len(self.ds)
 
     def __getitem__(self, i):
-        # extra safety in case tok wasn't rebuilt yet
         if self.tok is None:
             self.tok = _TokWrap(self.model_path)
         ids = self.tok.encode(self.ds[i]["story"])
