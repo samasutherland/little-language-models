@@ -14,7 +14,19 @@ from lib.registry import *
 from sympy import divisors
 import gc
 
+from lib.models import language_models
+
 import tomllib
+
+def create_registry_decorator(activation_dict):
+    def register(name):
+        def wrap(obj):
+            if name in activation_dict and activation_dict[name] is not obj:
+                raise RuntimeError(f"Duplicate activation name: {name}")
+            activation_dict[name] = obj
+            return obj
+        return wrap
+    return register
 
 def generate_sample(model, dataset, device, prompt, n_words=15, max_new_tokens=60, temperature=1.0, top_k=50, top_p=0.9):
     model.eval()
@@ -104,7 +116,7 @@ def get_data_loader(data_cfg, train_cfg, batch_size=None, split=None, shuffle=Tr
     return dataset, loader, vocab_size
 
 def create_model(model_cfg, vocab_size, device, dataset):
-    model_cls = MODEL_REGISTRY[model_cfg["model"]]
+    model_cls = getattr(language_models, model_cfg["model"])
 
     model_cfg["global"] = model_cfg["global"] | {"vocab_size": vocab_size, "padding_idx": dataset.pad_id}
 

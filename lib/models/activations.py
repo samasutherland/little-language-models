@@ -4,6 +4,8 @@ import torch
 from functools import cache
 from torch.cuda.amp import autocast
 
+from torch.nn import *
+
 @cache
 def closest_square(batches, features):
     divisor = int(features ** 0.5)

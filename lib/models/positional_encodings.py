@@ -24,3 +24,4 @@ class RoPE(nn.Module):
         x_rotated = torch.stack([x1 * cos - x2 * sin, x1 * sin + x2 * cos], dim=-1).flatten(-2).contiguous()
 
         return x_rotated
+

@@ -1,3 +1,3 @@
-from .language_models import Transformer
+from .language_models import *
+from .positional_encodings import *
 
-MODEL_REGISTRY = {"Transformer": Transformer}

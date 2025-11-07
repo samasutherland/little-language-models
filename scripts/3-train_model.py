@@ -52,11 +52,7 @@ def main():
     its_per_step = (train_cfg["accumulated_batch_size"] // train_cfg["batch_size"]) + int(train_cfg["accumulated_batch_size"] % train_cfg["batch_size"] > 0)
     scheduler = SCHEDULER_REGISTRY[train_cfg["scheduler"]](optimizer, max_lr=train_cfg["base_lr"], total_steps=train_cfg["total_steps"] // its_per_step, pct_start=peak_frac, div_factor=3., final_div_factor=10.)
 
-
-    if not model_cfg["attention"]["project_kv"]:
-        experiment_name = f"dense_transformer:{model_cfg['global']['activation']}"
-    else:
-        experiment_name = f"deepseek_transformer:{model_cfg['global']['activation']}"
+    experiment_name = f"{model_cfg['model']}:{model_cfg['global']['transformer_layer']}:{model_cfg['global']['attention_layer']}:{model_cfg['global']['activation']}"
 
     run = Run(experiment = experiment_name)
     run["model_cfg"] = model_cfg
@@ -175,23 +171,7 @@ def main():
     run["tokens_per_parameter"] = token_count / total_params
     run["best_loss"] = best_loss
 
-    # print("Generating sample...")
-    # generated_text = generate_sample(model, dataset, device, train_cfg["test_prompt"], n_words=20, max_new_tokens=100,
-    #                                  temperature=1.0, top_k=50,
-    #                                  top_p=0.9)
-    # run["final_text_generation"] = generated_text
-    #
-    # print(generated_text)
     run.close()
-    # finally:
-    #     try:
-    #         start = time.perf_counter()
-    #         run.close()
-    #         end = time.perf_counter()
-    #         print(f"run closed in {end - start:.2f} seconds")
-    #     except Exception as e:
-    #         print(f"run closure failed")
-    #         raise e
 
 if __name__ == "__main__":
     import torch.multiprocessing as mp
