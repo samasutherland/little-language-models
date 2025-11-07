@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-import positional_encodings
+from lib.models import positional_encodings
 from torch.nn import functional as F
 
 class MultiHeadSelfAttention(nn.Module):

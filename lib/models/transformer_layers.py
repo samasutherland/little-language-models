@@ -1,6 +1,6 @@
 from torch import nn
-import attention_layers
-import activations
+from lib.models import attention_layers
+from lib.models import activations
 
 
 class TransformerLayer(nn.Module):
@@ -19,7 +19,7 @@ class TransformerLayer(nn.Module):
             self.ffn = nn.Identity() # Identity activation collapses ff layers to no-op.
         else:
             self.ffn = nn.Sequential(nn.Linear(global_kwargs["embedding_dim"], global_kwargs["feedforward_dim"]),
-                                     getattr(activations, global_kwargs["activation"])[global_kwargs["activation"]](**activation_kwargs),
+                                     getattr(activations, global_kwargs["activation"])(**activation_kwargs),
                                      self.ffn_dropout,
                                      nn.Linear(global_kwargs["feedforward_dim"], global_kwargs["embedding_dim"]))
 

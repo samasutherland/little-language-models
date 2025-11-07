@@ -2,15 +2,15 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from .activations import SVDEntropicReduction, SVDTruncation, QRTruncation
-import transformer_layers
+from lib.models import transformer_layers
 
 class Transformer(nn.Module):
     def __init__(self, model_kwargs):
         super().__init__()
 
         global_kwargs = model_kwargs["global"]
-        attention_kwargs = model_kwargs["attention"]
-        norm_kwargs = model_kwargs["norm"]
+        attention_kwargs = model_kwargs["attention_kwargs"]
+        norm_kwargs = model_kwargs["norm_kwargs"]
         dropout_kwargs = model_kwargs["dropout"]
         positional_encoding_kwargs = model_kwargs["positional_encoding_kwargs"]
         activation_kwargs = model_kwargs["activation_kwargs"]

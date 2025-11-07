@@ -3,16 +3,15 @@ from datasets import load_dataset
 from torch.utils.data import DataLoader
 from functools import partial
 from data.datasets import SimpleStoriesBPEDataset
-from lib.models import MODEL_REGISTRY
 import time
 from contextlib import nullcontext
 import os
 import weakref
 import math
 import functools
-from lib.registry import *
 from sympy import divisors
 import gc
+from torch import nn
 
 from lib.models import language_models
 
@@ -270,18 +269,18 @@ def find_batch_size(model_cfg, data_cfg, train_cfg):
 
 
     # Define training params
-    criterion = LOSS_REGISTRY[train_cfg["loss"]](ignore_index=dataset.pad_id)
+    criterion = getattr(nn, train_cfg["loss"])(ignore_index=dataset.pad_id)
     decay, no_decay = [], []
     for n, p in model.named_parameters():
         if p.ndim == 1 or n.endswith("bias") or "norm" in n.lower():
             no_decay.append(p)
         else:
             decay.append(p)
-    optimizer = OPTIMIZER_REGISTRY[train_cfg["optimizer"]](
+    optimizer = getattr(torch.optim, train_cfg["optimizer"])(
         [{"params": decay, "weight_decay": train_cfg["weight_decay"]},
          {"params": no_decay, "weight_decay": 0.0}], lr=train_cfg["base_lr"], **train_cfg["optimizer_kwargs"])
 
-    scheduler = SCHEDULER_REGISTRY[train_cfg["scheduler"]](optimizer, max_lr=train_cfg["base_lr"],
+    scheduler = getattr(torch.optim.lr_scheduler, train_cfg["scheduler"])(optimizer, max_lr=train_cfg["base_lr"],
                                                            total_steps=train_cfg["total_steps"])
 
     # First scale batch size by 2 until OOM

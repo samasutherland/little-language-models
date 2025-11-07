@@ -20,9 +20,9 @@ SCHEDULER_REGISTRY = {"OneCycleLR": OneCycleLR, "Cosine": CosineAnnealingLR}
 
 
 print("loading configs...")
-model_cfg_path = Path("../configs/model.toml")
-data_cfg_path = Path("../configs/data.toml")
-train_cfg_path = Path("../configs/training.toml")
+model_cfg_path = Path("configs/model.toml")
+data_cfg_path = Path("configs/data.toml")
+train_cfg_path = Path("configs/training.toml")
 
 model_cfg = parse(model_cfg_path.read_text(encoding="utf-8"))
 data_cfg = parse(data_cfg_path.read_text(encoding="utf-8"))
