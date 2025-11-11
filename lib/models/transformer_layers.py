@@ -4,16 +4,15 @@ from lib.models import activations
 
 
 class TransformerLayer(nn.Module):
-    def __init__(self, global_kwargs, attention_kwargs, dropout_kwargs, norm_kwargs, positional_encoding_kwargs, activation_kwargs):
+    def __init__(self, norm, attention, ):
         super().__init__()
 
-        self.attn_norm = getattr(nn, global_kwargs["norm"])(global_kwargs["embedding_dim"], **norm_kwargs)
-        self.ffn_norm = getattr(nn, global_kwargs["norm"])(global_kwargs["embedding_dim"], **norm_kwargs)
+        self.norm = norm
 
         self.attn_dropout = nn.Dropout(dropout_kwargs["attn_dropout"])
         self.ffn_dropout = nn.Dropout(dropout_kwargs["ffn_dropout"])
 
-        self.attention = getattr(attention_layers, global_kwargs["attention_layer"])(embedding_dim=global_kwargs["embedding_dim"], max_context=global_kwargs["max_context"], dropout=dropout_kwargs["attn_dropout"], positional_encoding_type=global_kwargs["positional_encoding"], positional_encoding_kwargs=positional_encoding_kwargs, **attention_kwargs)
+        self.attention = attention
 
         if global_kwargs["activation"] == "Identity":
             self.ffn = nn.Identity() # Identity activation collapses ff layers to no-op.

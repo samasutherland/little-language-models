@@ -26,7 +26,7 @@ class SVDTruncation(Module):
         - Input: (..., Features)
         - Output: (..., Features)
     """
-    def __init__(self, eps=None, k=None) -> None:
+    def __init__(self, eps: float=None, k: int=None) -> None:
         super().__init__()
         if eps is None and k is None:
             raise ValueError("Need to specify either eps or k")
