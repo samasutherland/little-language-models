@@ -30,11 +30,12 @@ tar -C /workspace -czf /workspace/aim_repo_${RUNPOD_POD_ID}.tar.gz .aim
 echo "Uploading results to Google Drive..."
 
 rclone --config /secrets/rclone.conf copy /workspace/configs/ "Gdrive:runpod-uploads/${RUNPOD_POD_ID}/" --create-empty-src-dirs --retries 3
+rclone --config /secrets/rclone.conf copy /workspace/experiment/ "Gdrive:runpod-uploads/${RUNPOD_POD_ID}/" --create-empty-src-dirs --retries 3
 rclone --config /secrets/rclone.conf copy /workspace/aim_repo_${RUNPOD_POD_ID}.tar.gz "Gdrive:runpod-uploads/.aim/${RUNPOD_POD_ID}/" --retries 3
 
 echo "Evaluating model"
 python3 scripts/5-evaluate_model.py
-rclone --config /secrets/rclone.conf copy /workspace/configs/ "Gdrive:runpod-uploads/${RUNPOD_POD_ID}/test_acc.txt" --create-empty-src-dirs --retries 3
+rclone --config /secrets/rclone.conf copy /workspace/configs/test_acc.txt "Gdrive:runpod-uploads/${RUNPOD_POD_ID}/" --create-empty-src-dirs --retries 3
 
 echo "Stopping pod $RUNPOD_POD_ID..."
 runpodctl remove pod "$RUNPOD_POD_ID"
