@@ -10,8 +10,8 @@ fi
 exec > >(tee "/workspace/experiment/stdout.log")
 exec 2> >(tee "/workspace/experiment/stderr.log" >&2)
 
-echo "Finding Model Size..."
-python3 scripts/1-find_model_size.py
+#echo "Finding Model Size..."
+#python3 scripts/1-find_model_size.py
 
 echo "Finding Learning Rate..."
 python3 scripts/2-find_learning_rate.py
