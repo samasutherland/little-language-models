@@ -68,10 +68,15 @@ jobs:
             --arg name "${{ needs.build-push.outputs.pod_name }}" \
             '{
               templateId: $templateId,
-              cloudType: "COMMUNITY",
+              cloudType: "SECURE",
               gpuCount: 1,
               gpuTypeIds: ["NVIDIA GeForce RTX 4090"],
+              minDownloadMbps: 200,
+              minVCPUPerGPU: 32,
+              minRAMPerGPU: 24,
+              dataCenterIds: ["EU-RO-1"],
               imageName: $imageName,
+              allowedCudaVersions: ["12.9"],
               name: $name
             }')
 
