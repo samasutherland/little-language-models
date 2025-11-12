@@ -2,7 +2,7 @@ name: Build, Push, Train, and Test Model
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "train" ]
 
 permissions:
   contents: read
