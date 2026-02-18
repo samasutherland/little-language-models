@@ -3,6 +3,8 @@ from pydantic import BaseModel, ConfigDict, field_validator, model_validator, Fi
 
 import torch
 from torch import nn
+
+from lib.components import BuildContext
 from lib.components.transformer_layers import TransformerLayerFactory, StandardTransformerLayerFactory
 from lib.components.norms import NormFactory, RMSNormFactory
 from lib.components.embedding_layers import EmbeddingLayerFactory, StandardEmbeddingLayerFactory
@@ -35,10 +37,12 @@ class TransformerFactory(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: Literal["transformer"] = "transformer"
 
-    transformer_layer_factory: TransformerLayerFactory = StandardTransformerLayerFactory()
-    final_norm_factory: NormFactory = RMSNormFactory()
-    embedding_layer_factory: EmbeddingLayerFactory = StandardEmbeddingLayerFactory()
-    num_layers: int = 4
+    ctx: BuildContext
+
+    transformer_layer_factory: TransformerLayerFactory
+    final_norm_factory: NormFactory
+    embedding_layer_factory: EmbeddingLayerFactory
+    num_layers: int
 
     def build(self) -> nn.Module:
         return Transformer(self.transformer_layer_factory,

@@ -1,0 +1,35 @@
+# Model Parameters
+
+model = "Transformer"
+
+[global]
+positional_encoding = "RoPE"
+attention_layer = "MultiHeadSelfAttention"
+transformer_layer = "TransformerLayer"
+activation = "GELU"
+norm = "RMSNorm"
+
+num_layers = 2
+embedding_dim = 256
+feedforward_dim = 1024
+max_context = 512
+vocab_size = 4000
+padding_idx = 3
+
+[attention_kwargs]
+n_heads = 4
+qk_dim = 64
+v_dim = 64
+causal = true
+sdpa = true
+
+[activation_kwargs]
+
+[norm_kwargs]
+
+[dropout]
+attn_dropout = 0.0
+ffn_dropout = 0.0
+
+[positional_encoding_kwargs]
+base = 10000

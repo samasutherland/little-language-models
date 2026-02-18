@@ -3,9 +3,8 @@ from pydantic import BaseModel, ConfigDict, field_validator, model_validator, Fi
 
 import torch
 from torch import nn
+
 from lib.components.base import BuildContext
-
-
 
 # ---------- Layer Definitions ---------- #
 
@@ -13,9 +12,10 @@ class StandardEmbeddingLayerFactory(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: Literal["standardembeddinglayer"] = "standardembeddinglayer"
 
-    ctx: BuildContext = BuildContext()
-    vocab_size: int = 4000
-    padding_idx: int = 3
+    ctx: BuildContext
+
+    vocab_size: int
+    padding_idx: int
 
 
     def build(self) -> nn.Module:

@@ -5,9 +5,8 @@ from torch.nn import functional as F
 from typing import Literal, Annotated, Union, Optional
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator, Field, TypeAdapter
 
-from lib.components.base import BuildContext
 from lib.components.positional_encodings import PositionalEncodingFactory, RoPEFactory
-
+from lib.components.base import BuildContext
 
 # ---------- Layer Definitions ---------- #
 
@@ -25,26 +24,26 @@ class MultiHeadSelfAttention(nn.Module):
                  reproject=True):
         super().__init__()
         self.embedding_dim = embedding_dim
-        self.qk_dim = qk_dim
-        self.v_dim = v_dim
         self.max_context = max_context
+        self.v_dim = v_dim
         self.causal = causal
         self.n_heads = n_heads
         self.sdpa = sdpa
         self.dropout = dropout
         self.dropout_layer = nn.Dropout(dropout)
 
-        self.inv_sqrt_qk_dim = 1 / qk_dim ** 0.5
-
         self.qk_positional_encoding = positional_encoding_factory.build()
+        self.qk_dim = self.qk_positional_encoding.dim
 
-        self.q = nn.Linear(embedding_dim, qk_dim * n_heads)  # Grouped matrix for the heads
-        self.kv = nn.Linear(embedding_dim, (qk_dim + v_dim) * n_heads)
+        self.inv_sqrt_qk_dim = 1 / self.qk_dim ** 0.5
+
+        self.q = nn.Linear(embedding_dim, self.qk_dim * n_heads)  # Grouped matrix for the heads
+        self.kv = nn.Linear(embedding_dim, (self.qk_dim + v_dim) * n_heads)
 
         if causal:
-            mask = torch.zeros(max_context, max_context)
+            mask = torch.zeros(self.qk_positional_encoding.max_context, self.qk_positional_encoding.max_context)
             self.register_buffer("mask_array",
-                                 mask.masked_fill(~torch.tril(torch.ones(max_context, max_context, dtype=torch.bool)),
+                                 mask.masked_fill(~torch.tril(torch.ones(self.qk_positional_encoding.max_context, self.qk_positional_encoding.max_context, dtype=torch.bool)),
                                                   float("-inf")))
 
         if n_heads * v_dim != embedding_dim or reproject:
@@ -54,7 +53,7 @@ class MultiHeadSelfAttention(nn.Module):
 
     def forward(self, x):
 
-        x = x[:, -self.max_context:, :]
+        x = x[:, -self.qk_positional_encoding.max_context:, :]
         batch_dim, seq_len, embed_dim = x.shape
         q = self.q(x)  # batch, seq, n_heads * qk_dim
 
@@ -93,24 +92,22 @@ class MultiHeadSelfAttentionFactory(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: Literal["multiheadselfattention"] = "multiheadselfattention"
 
-    ctx: BuildContext = BuildContext()
-    positional_encoding_factory: PositionalEncodingFactory = RoPEFactory()
-    qk_dim: int = 64
-    v_dim: int = 64
-    causal: bool = True
-    n_heads: int = 6
-    sdpa: bool = True
-    dropout: float = 0.1
-    reproject: bool = True
+    positional_encoding_factory: PositionalEncodingFactory
+    ctx: BuildContext
+
+    v_dim: int
+    causal: bool
+    n_heads: int
+    sdpa: bool
+    dropout: float
+    reproject: bool
 
 
     def build(self) -> nn.Module:
         return MultiHeadSelfAttention(self.positional_encoding_factory,
                                                        embedding_dim=self.ctx.embedding_dim,
-                                                       qk_dim=self.qk_dim,
                                                        v_dim=self.v_dim,
                                                        causal=self.causal,
-                                                       max_context=self.ctx.max_context,
                                                        n_heads=self.n_heads,
                                                        sdpa=self.sdpa,
                                                        dropout=self.dropout,
@@ -121,45 +118,41 @@ class LatentMultiHeadSelfAttention(MultiHeadSelfAttention):
     def __init__(self,
                  positional_encoding_factory: PositionalEncodingFactory,
                  embedding_dim: int=384,
-                 qk_dim: int=64,
                  projection_dim: int=128,
                  v_dim: int=64,
                  causal: bool=True,
-                 max_context: int=100,
                  n_heads: int=6,
                  sdpa: bool=False,
                  dropout: float=0.1,
                  reproject=True):
-        super().__init__(positional_encoding_factory, embedding_dim=embedding_dim, qk_dim=qk_dim, v_dim=v_dim, causal=causal,
-                         max_context=max_context, n_heads=n_heads, sdpa=sdpa, dropout=dropout,reproject=reproject)
+        super().__init__(positional_encoding_factory, embedding_dim=embedding_dim, v_dim=v_dim, causal=causal,
+                        n_heads=n_heads, sdpa=sdpa, dropout=dropout,reproject=reproject)
 
         # Overwrite kv transform with latent space version
         self.kv = nn.Sequential(nn.Linear(embedding_dim, projection_dim), nn.Linear(projection_dim, (
-                    qk_dim + v_dim) * n_heads))  # Grouped matrix for the heads and k and v
+                    self.qk_dim + v_dim) * n_heads))  # Grouped matrix for the heads and k and v
 
 class LatentMultiHeadSelfAttentionFactory(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: Literal["latentmultiheadselfattention"] = "latentmultiheadselfattention"
 
-    ctx: BuildContext = BuildContext()
-    positional_encoding_factory: PositionalEncodingFactory = RoPEFactory()
-    projection_dim: int = 128
-    qk_dim: int = 64
-    v_dim: int = 64
-    causal: bool = True
-    n_heads: int = 6
-    sdpa: bool = True
-    dropout: float = 0.1
-    reproject: bool = True
+    positional_encoding_factory: PositionalEncodingFactory
+    ctx: BuildContext
+
+    projection_dim: int
+    v_dim: int
+    causal: bool
+    n_heads: int
+    sdpa: bool
+    dropout: float
+    reproject: bool
 
     def build(self) -> nn.Module:
         return LatentMultiHeadSelfAttention(self.positional_encoding_factory,
                                                              projection_dim=self.projection_dim,
                                                              embedding_dim=self.ctx.embedding_dim,
-                                                             qk_dim=self.qk_dim,
                                                              v_dim=self.v_dim,
                                                              causal=self.causal,
-                                                             max_context=self.ctx.max_context,
                                                              n_heads=self.n_heads,
                                                              sdpa=self.sdpa,
                                                              dropout=self.dropout,

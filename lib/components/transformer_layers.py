@@ -3,11 +3,10 @@ from pydantic import BaseModel, ConfigDict, field_validator, model_validator, Fi
 
 from torch import nn
 
+from lib.components.attention_layers import AttentionFactory
+from lib.components.activations import ActivationFactory, IdentityFactory
+from lib.components.norms import NormFactory
 from lib.components.base import BuildContext
-from lib.components.attention_layers import AttentionFactory, MultiHeadSelfAttentionFactory
-from lib.components.activations import ActivationFactory, IdentityFactory, GELUFactory
-from lib.components.norms import NormFactory, RMSNormFactory
-from lib.components.positional_encodings import PositionalEncodingFactory, RoPEFactory
 
 # ---------- Layer Definitions ---------- #
 
@@ -49,13 +48,13 @@ class StandardTransformerLayerFactory(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: Literal["standardtransformerlayer"] = "standardtransformerlayer"
 
-    ctx: BuildContext = BuildContext()
-    activation_factory: ActivationFactory = GELUFactory()
-    norm_factory: NormFactory = RMSNormFactory()
-    attention_factory: AttentionFactory = MultiHeadSelfAttentionFactory()
+    activation_factory: ActivationFactory
+    norm_factory: NormFactory
+    attention_factory: AttentionFactory
 
-    dropout: float = 0.0
-    feedforward_dim: int = 1024
+    ctx: BuildContext
+    dropout: float
+    feedforward_dim: int
 
 
     def build(self) -> nn.Module:

@@ -1,35 +1,46 @@
-# Model Parameters
-
-model = "Transformer"
-
-[global]
-positional_encoding = "RoPE"
-attention_layer = "MultiHeadSelfAttention"
-transformer_layer = "TransformerLayer"
-activation = "GELU"
-norm = "RMSNorm"
-
-num_layers = 2
+[build_context]
 embedding_dim = 256
-feedforward_dim = 1024
-max_context = 512
-vocab_size = 4000
-padding_idx = 3
 
-[attention_kwargs]
-n_heads = 4
-qk_dim = 64
-v_dim = 64
-causal = true
-sdpa = true
+[model_parameters]
+type = "transformer"
+num_layers = 2
+embedding_layer:
+    layertype = "embedding"
+    type = "standardembeddinglayer"
+    vocab_size = 4000
+    padding_idx = 3
 
-[activation_kwargs]
+final_norm:
+    layertype = "norm"
+    type = "rmsnorm"
 
-[norm_kwargs]
+transformer_layer:
+    layertype = "transformer"
+    type = "standardtransformerlayer"
+    dropout = 0.0
+    feedforward_dim = 1024
 
-[dropout]
-attn_dropout = 0.0
-ffn_dropout = 0.0
+    activation:
+        layertype = "activation"
+        type = "gelu"
 
-[positional_encoding_kwargs]
-base = 10000
+    norm:
+        layertype = "norm"
+        type = "rmsnorm"
+
+    attention_layer:
+        layertype = "attention"
+        type = "multiheadselfattention"
+        v_dim = 64
+        causal = true
+        n_heads = 4
+        sdpa = true
+        dropout = 0.0
+        reproject = true
+
+        positional_encoding:
+            layertype = "positional_encoding"
+            type = "rope"
+            base = 10000
+            qk_dim = 64
+            max_context = 512
