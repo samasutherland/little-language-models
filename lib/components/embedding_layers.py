@@ -4,22 +4,20 @@ from pydantic import BaseModel, ConfigDict, field_validator, model_validator, Fi
 import torch
 from torch import nn
 
-from lib.components.base import BuildContext
-
 # ---------- Layer Definitions ---------- #
 
 class StandardEmbeddingLayerFactory(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: Literal["standardembeddinglayer"] = "standardembeddinglayer"
 
-    ctx: BuildContext
+    embedding_dim: int
 
     vocab_size: int
     padding_idx: int
 
 
     def build(self) -> nn.Module:
-        return nn.Embedding(self.vocab_size, self.ctx.embedding_dim, padding_idx=self.padding_idx)
+        return nn.Embedding(self.vocab_size, self.embedding_dim, padding_idx=self.padding_idx)
 
 # ---------- Layer Registration ---------- #
 

@@ -10,8 +10,6 @@ from torch.cuda.amp import autocast
 
 from torch.nn import *
 
-from lib.components.base import BuildContext
-
 @cache
 def closest_square(batches, features):
     divisor = int(features ** 0.5)
@@ -25,8 +23,6 @@ def closest_square(batches, features):
 class IdentityFactory(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: Literal["identity"] = "identity"
-
-    ctx: BuildContext
 
     def build(self) -> nn.Module:
         return nn.Identity()
@@ -71,8 +67,6 @@ class SVDTruncation(Module):
 class SVDTruncationFactory(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: Literal["svdtruncation"] = "svdtruncation"
-
-    ctx: BuildContext
 
     eps: float | None = 0.01
     k: int | None = None
@@ -120,8 +114,6 @@ class QRTruncationFactory(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: Literal["qrtruncation"] = "qrtruncation"
 
-    ctx: BuildContext
-
     k: int
 
     def build(self) -> nn.Module:
@@ -168,8 +160,6 @@ class SVDEntropicReductionFactory(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: Literal["svdentropicreduction"] = "svdentropicreduction"
 
-    ctx: BuildContext
-
     alpha: float
 
     def build(self) -> nn.Module:
@@ -180,8 +170,6 @@ class GELUFactory(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: Literal["gelu"] = "gelu"
 
-    ctx: BuildContext
-
     def build(self) -> nn.Module:
         return nn.GELU()
 
@@ -189,8 +177,6 @@ class GELUFactory(BaseModel):
 class RELUFactory(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: Literal["relu"] = "relu"
-
-    ctx: BuildContext
 
     def build(self) -> nn.Module:
         return nn.ReLU()

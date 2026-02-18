@@ -6,7 +6,6 @@ from torch import nn
 from lib.components.attention_layers import AttentionFactory
 from lib.components.activations import ActivationFactory, IdentityFactory
 from lib.components.norms import NormFactory
-from lib.components.base import BuildContext
 
 # ---------- Layer Definitions ---------- #
 
@@ -52,20 +51,39 @@ class StandardTransformerLayerFactory(BaseModel):
     norm_factory: NormFactory
     attention_factory: AttentionFactory
 
-    ctx: BuildContext
+    embedding_dim: int | None = None
     dropout: float
     feedforward_dim: int
 
 
+    @model_validator(mode="after")
+    def _apply_embedding_dim(self):
+        # If embedding_dim is set here, ensure dependent factories see it as well where relevant.
+        if self.embedding_dim is not None:
+            # Attention factory expects embedding_dim directly.
+            if hasattr(self.attention_factory, "embedding_dim") and getattr(self.attention_factory, "embedding_dim", None) is None:
+                self.attention_factory.embedding_dim = self.embedding_dim
+
+            # Norm factory may use embedding_dim as default if present.
+            if hasattr(self.norm_factory, "embedding_dim") and getattr(self.norm_factory, "embedding_dim", None) is None:
+                self.norm_factory.embedding_dim = self.embedding_dim
+
+        return self
+
+
     def build(self) -> nn.Module:
 
-        return StandardTransformerLayer(self.activation_factory,
-                                 self.norm_factory,
-                                 self.attention_factory,
-                                 embedding_dim = self.ctx.embedding_dim,
-                                 dropout = self.dropout,
-                                 feedforward_dim = self.feedforward_dim
-                                 )
+        if self.embedding_dim is None:
+            raise ValueError("StandardTransformerLayerFactory.embedding_dim must be set before build().")
+
+        return StandardTransformerLayer(
+            self.activation_factory,
+            self.norm_factory,
+            self.attention_factory,
+            embedding_dim=self.embedding_dim,
+            dropout=self.dropout,
+            feedforward_dim=self.feedforward_dim,
+        )
 
 # ---------- Layer Registration ---------- #
 

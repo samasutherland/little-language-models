@@ -3,8 +3,6 @@ from torch import nn
 from typing import Literal, Annotated, Union, Optional
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator, Field, TypeAdapter
 
-from lib.components.base import BuildContext
-
 # ---------- Layer Definitions ---------- #
 
 class RoPE(nn.Module):
@@ -38,13 +36,13 @@ class RoPEFactory(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: Literal["rope"] = "rope"
 
-    ctx: BuildContext
-
-    base: int
-    qk_dim: int
-    max_context: int
+    base: int = 10000
+    qk_dim: int | None = None
+    max_context: int | None = None
 
     def build(self) -> nn.Module:
+        assert self.qk_dim is not None, "RoPEFactory.qk_dim must be set before build()"
+        assert self.max_context is not None, "RoPEFactory.max_context must be set before build()"
         return RoPE(self.max_context, self.qk_dim, base=self.base)
 
 # ---------- Layer Registration ---------- #

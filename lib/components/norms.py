@@ -10,15 +10,11 @@ from torch.cuda.amp import autocast
 
 from torch.nn import *
 
-from lib.components.base import BuildContext
-
 # ---------- Layer Definitions ---------- #
 
 class IdentityFactory(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: Literal["identity"] = "identity"
-
-    ctx: BuildContext
 
     def build(self) -> nn.Module:
         return nn.Identity()
@@ -27,24 +23,22 @@ class RMSNormFactory(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: Literal["rmsnorm"] = "rmsnorm"
 
-    ctx: BuildContext
-
+    embedding_dim: int
     dim: Optional[int] = None
 
     def build(self) -> nn.Module:
-        return nn.RMSNorm(self.dim if self.dim is not None else self.ctx.embedding_dim)
+        return nn.RMSNorm(self.dim if self.dim is not None else self.embedding_dim)
 
 
 class LayerNormFactory(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: Literal["layernorm"] = "layernorm"
 
-    ctx: BuildContext
-
+    embedding_dim: int
     dim: Optional[int] = None
 
     def build(self) -> nn.Module:
-        return nn.LayerNorm(self.dim if self.dim is not None else self.ctx.embedding_dim)
+        return nn.LayerNorm(self.dim if self.dim is not None else self.embedding_dim)
 
 # ---------- Layer Registration ---------- #
 

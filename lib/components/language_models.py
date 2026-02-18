@@ -4,7 +4,6 @@ from pydantic import BaseModel, ConfigDict, field_validator, model_validator, Fi
 import torch
 from torch import nn
 
-from lib.components import BuildContext
 from lib.components.transformer_layers import TransformerLayerFactory, StandardTransformerLayerFactory
 from lib.components.norms import NormFactory, RMSNormFactory
 from lib.components.embedding_layers import EmbeddingLayerFactory, StandardEmbeddingLayerFactory
@@ -37,19 +36,35 @@ class TransformerFactory(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: Literal["transformer"] = "transformer"
 
-    ctx: BuildContext
+    embedding_dim: int
 
     transformer_layer_factory: TransformerLayerFactory
     final_norm_factory: NormFactory
     embedding_layer_factory: EmbeddingLayerFactory
     num_layers: int
 
+    @model_validator(mode="after")
+    def _apply_embedding_dim(self):
+        # Ensure sub-factories that depend on embedding_dim receive it explicitly.
+        if hasattr(self.embedding_layer_factory, "embedding_dim") and self.embedding_layer_factory.embedding_dim is None:
+            self.embedding_layer_factory.embedding_dim = self.embedding_dim
+
+        if hasattr(self.transformer_layer_factory, "embedding_dim") and self.transformer_layer_factory.embedding_dim is None:
+            self.transformer_layer_factory.embedding_dim = self.embedding_dim
+
+        # Norm factories may optionally use embedding_dim as their default dimension.
+        if isinstance(self.final_norm_factory, RMSNormFactory) and getattr(self.final_norm_factory, "embedding_dim", None) is None:
+            self.final_norm_factory.embedding_dim = self.embedding_dim
+
+        return self
+
     def build(self) -> nn.Module:
-        return Transformer(self.transformer_layer_factory,
-                           self.final_norm_factory,
-                           self.embedding_layer_factory,
-                           self.num_layers,
-                           )
+        return Transformer(
+            self.transformer_layer_factory,
+            self.final_norm_factory,
+            self.embedding_layer_factory,
+            self.num_layers,
+        )
 
 # ---------- Layer Registration ---------- #
 

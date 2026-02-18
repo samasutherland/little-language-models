@@ -1,14 +1,25 @@
-from .components import *
+from pathlib import Path
+from typing import Dict
 
-import tomllib
+import yaml
+import torch.nn as nn
 
-def load_configs():
-    with open("configs/model.toml", "rb") as f:
-        model_cfg = tomllib.load(f)
-    with open("configs/data.toml", "rb") as f:
-        data_cfg = tomllib.load(f)
-    with open("configs/training.toml", "rb") as f:
-        train_cfg = tomllib.load(f)
+from lib.components import LanguageModelFactory
 
-    return model_cfg, data_cfg, train_cfg
+
+def build_model_from_config(config_path: str | Path = "configs/model.yaml") -> nn.Module:
+    """
+    Load a language model from a YAML config file and construct the nn.Module.
+    """
+    config_path = Path(config_path)
+    with config_path.open("r") as f:
+        raw = yaml.safe_load(f)
+
+    model_params: Dict[str, object] = dict(raw["model_parameters"])
+
+    factory = LanguageModelFactory.model_validate(model_params)
+    return factory.build()
+
+
+__all__ = ["build_model_from_config"]
 
