@@ -1,4 +1,8 @@
+from typing import Literal, Annotated, Union, Optional
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator, Field, TypeAdapter
+
 from torch.nn import Module
+from torch import nn
 from torch import Tensor
 import torch
 from functools import cache
@@ -13,6 +17,16 @@ def closest_square(batches, features):
         divisor -= 1
 
     return (batches, divisor, features // divisor)
+
+# ---------- Layer Definitions ---------- #
+
+class IdentityFactory(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    type: Literal["identity"] = "identity"
+
+    def build(self) -> nn.Module:
+        return nn.Identity()
+
 
 class SVDTruncation(Module):
     r"""Truncates the singular values of a reshaped vector using SVD. Truncates via singular value count or via thresholding.
@@ -50,6 +64,21 @@ class SVDTruncation(Module):
         S = S * mask
         return torch.bmm(U * S.unsqueeze(-2), Vh).reshape(input.shape).to(dtype=input.dtype)
 
+class SVDTruncationFactory(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    type: Literal["svdtruncation"] = "svdtruncation"
+    eps: float | None = 0.01
+    k: int | None = None
+
+    @model_validator(mode="after")
+    def _check(self):
+        if self.eps is None and self.k is None:
+            raise ValueError("SVDTruncation: specify either eps or k")
+
+    def build(self) -> nn.Module:
+        return SVDTruncation(eps=self.eps, k=self.k)
+
+
 class QRTruncation(Module):
     r"""Truncates the rank of a reshaped vector using QR.
 
@@ -80,6 +109,13 @@ class QRTruncation(Module):
 
         return output.reshape(input.shape).to(dtype=input.dtype)
 
+class QRTruncationFactory(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    type: Literal["qrtruncation"] = "qrtruncation"
+    k: int
+
+    def build(self) -> nn.Module:
+        return QRTruncation(k=self.k)
 
 
 class SVDEntropicReduction(Module):
@@ -117,3 +153,34 @@ class SVDEntropicReduction(Module):
 
 
         return torch.bmm(U * S.unsqueeze(-2), Vh).reshape(input.shape).to(dtype=input.dtype)
+
+class SVDEntropicReductionFactory(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    type: Literal["svdentropicreduction"] = "svdentropicreduction"
+    alpha: float
+
+    def build(self) -> nn.Module:
+        return SVDEntropicReduction(alpha=self.alpha)
+
+
+class GELUFactory(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    type: Literal["gelu"] = "gelu"
+
+    def build(self) -> nn.Module:
+        return nn.GELU()
+
+
+class RELUFactory(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    type: Literal["relu"] = "relu"
+
+    def build(self) -> nn.Module:
+        return nn.ReLU()
+
+# ---------- Layer Registration ---------- #
+
+ActivationFactory = Annotated[
+    Union[
+        IdentityFactory, GELUFactory, RELUFactory, QRTruncationFactory, SVDTruncationFactory, SVDEntropicReductionFactory], Field(
+        discriminator="type")]

@@ -1,5 +1,11 @@
 import torch
 from torch import nn
+from typing import Literal, Annotated, Union, Optional
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator, Field, TypeAdapter
+
+from base import BuildContext
+
+# ---------- Layer Definitions ---------- #
 
 class RoPE(nn.Module):
     def __init__(self, max_seq_len, dim, base=10000):
@@ -24,4 +30,20 @@ class RoPE(nn.Module):
         x_rotated = torch.stack([x1 * cos - x2 * sin, x1 * sin + x2 * cos], dim=-1).flatten(-2).contiguous()
 
         return x_rotated
+
+
+class RoPEFactory(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    type: Literal["rope"] = "rope"
+    base: int = 10000
+
+    ctx: BuildContext = BuildContext()
+    qk_dim: int = 64
+
+    def build(self) -> nn.Module:
+        return RoPE(self.ctx.max_context, self.qk_dim, base=self.base)
+
+# ---------- Layer Registration ---------- #
+
+PositionalEncodingFactory = Annotated[Union[RoPEFactory], Field(discriminator="type")]
 

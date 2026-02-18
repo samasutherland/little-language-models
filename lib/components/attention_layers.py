@@ -1,12 +1,19 @@
 import torch
 from torch import nn
-from lib.models import positional_encodings
+from lib.components import positional_encodings
 from torch.nn import functional as F
+from typing import Literal, Annotated, Union, Optional
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator, Field, TypeAdapter
 
+from lib.components.base import BuildContext
+from lib.components.positional_encodings import PositionalEncodingFactory, RoPEFactory
+
+
+# ---------- Layer Definitions ---------- #
 
 class MultiHeadSelfAttention(nn.Module):
     def __init__(self,
-                 positional_encoding: nn.Module,
+                 positional_encoding_factory: PositionalEncodingFactory,
                  embedding_dim: int=384,
                  qk_dim: int=64,
                  v_dim: int=64,
@@ -29,7 +36,7 @@ class MultiHeadSelfAttention(nn.Module):
 
         self.inv_sqrt_qk_dim = 1 / qk_dim ** 0.5
 
-        self.qk_positional_encoding = positional_encoding
+        self.qk_positional_encoding = positional_encoding_factory.build()
 
         self.q = nn.Linear(embedding_dim, qk_dim * n_heads)  # Grouped matrix for the heads
         self.kv = nn.Linear(embedding_dim, (qk_dim + v_dim) * n_heads)
@@ -82,10 +89,37 @@ class MultiHeadSelfAttention(nn.Module):
         return self.reproject(attn_output.transpose(1, 2).reshape(batch_dim, seq_len,
                                                                   self.v_dim * self.n_heads))  # batch, seq, embedding_dim
 
+class MultiHeadSelfAttentionFactory(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    type: Literal["multiheadselfattention"] = "multiheadselfattention"
+
+    ctx: BuildContext = BuildContext()
+    positional_encoding_factory: PositionalEncodingFactory = RoPEFactory()
+    qk_dim: int = 64
+    v_dim: int = 64
+    causal: bool = True
+    n_heads: int = 6
+    sdpa: bool = True
+    dropout: float = 0.1
+    reproject: bool = True
+
+
+    def build(self) -> nn.Module:
+        return MultiHeadSelfAttention(self.positional_encoding_factory,
+                                                       embedding_dim=self.ctx.embedding_dim,
+                                                       qk_dim=self.qk_dim,
+                                                       v_dim=self.v_dim,
+                                                       causal=self.causal,
+                                                       max_context=self.ctx.max_context,
+                                                       n_heads=self.n_heads,
+                                                       sdpa=self.sdpa,
+                                                       dropout=self.dropout,
+                                                       reproject=self.reproject)
+
 
 class LatentMultiHeadSelfAttention(MultiHeadSelfAttention):
     def __init__(self,
-                 positional_encoding: nn.Module,
+                 positional_encoding_factory: PositionalEncodingFactory,
                  embedding_dim: int=384,
                  qk_dim: int=64,
                  projection_dim: int=128,
@@ -96,9 +130,42 @@ class LatentMultiHeadSelfAttention(MultiHeadSelfAttention):
                  sdpa: bool=False,
                  dropout: float=0.1,
                  reproject=True):
-        super().__init__(positional_encoding, embedding_dim=embedding_dim, qk_dim=qk_dim, v_dim=v_dim, causal=causal,
+        super().__init__(positional_encoding_factory, embedding_dim=embedding_dim, qk_dim=qk_dim, v_dim=v_dim, causal=causal,
                          max_context=max_context, n_heads=n_heads, sdpa=sdpa, dropout=dropout,reproject=reproject)
 
         # Overwrite kv transform with latent space version
         self.kv = nn.Sequential(nn.Linear(embedding_dim, projection_dim), nn.Linear(projection_dim, (
                     qk_dim + v_dim) * n_heads))  # Grouped matrix for the heads and k and v
+
+class LatentMultiHeadSelfAttentionFactory(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    type: Literal["multiheadselfattention"] = "multiheadselfattention"
+
+    ctx: BuildContext = BuildContext()
+    positional_encoding_factory: PositionalEncodingFactory = RoPEFactory()
+    projection_dim: int = 128
+    qk_dim: int = 64
+    v_dim: int = 64
+    causal: bool = True
+    n_heads: int = 6
+    sdpa: bool = True
+    dropout: float = 0.1
+    reproject: bool = True
+
+    def build(self) -> nn.Module:
+        return LatentMultiHeadSelfAttention(self.positional_encoding_factory,
+                                                             projection_dim=self.projection_dim,
+                                                             embedding_dim=self.ctx.embedding_dim,
+                                                             qk_dim=self.qk_dim,
+                                                             v_dim=self.v_dim,
+                                                             causal=self.causal,
+                                                             max_context=self.ctx.max_context,
+                                                             n_heads=self.n_heads,
+                                                             sdpa=self.sdpa,
+                                                             dropout=self.dropout,
+                                                             reproject=self.reproject)
+
+# ---------- Layer Registration ---------- #
+
+AttentionFactory = Annotated[
+    Union[MultiHeadSelfAttentionFactory, LatentMultiHeadSelfAttentionFactory], Field(discriminator="type")]

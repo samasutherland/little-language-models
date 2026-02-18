@@ -13,19 +13,9 @@ from sympy import divisors
 import gc
 from torch import nn
 
-from lib.models import language_models
+from lib.components import language_models
 
 import tomllib
-
-def create_registry_decorator(activation_dict):
-    def register(name):
-        def wrap(obj):
-            if name in activation_dict and activation_dict[name] is not obj:
-                raise RuntimeError(f"Duplicate activation name: {name}")
-            activation_dict[name] = obj
-            return obj
-        return wrap
-    return register
 
 def generate_sample(model, dataset, device, prompt, n_words=15, max_new_tokens=60, temperature=1.0, top_k=50, top_p=0.9):
     model.eval()
