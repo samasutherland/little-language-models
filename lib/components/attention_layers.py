@@ -139,7 +139,7 @@ class LatentMultiHeadSelfAttention(MultiHeadSelfAttention):
 
 class LatentMultiHeadSelfAttentionFactory(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    type: Literal["multiheadselfattention"] = "multiheadselfattention"
+    type: Literal["latentmultiheadselfattention"] = "latentmultiheadselfattention"
 
     ctx: BuildContext = BuildContext()
     positional_encoding_factory: PositionalEncodingFactory = RoPEFactory()

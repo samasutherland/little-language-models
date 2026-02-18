@@ -181,6 +181,6 @@ class RELUFactory(BaseModel):
 # ---------- Layer Registration ---------- #
 
 ActivationFactory = Annotated[
-    Union[
+        Union[
         IdentityFactory, GELUFactory, RELUFactory, QRTruncationFactory, SVDTruncationFactory, SVDEntropicReductionFactory], Field(
         discriminator="type")]

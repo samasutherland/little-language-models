@@ -3,7 +3,7 @@ from torch import nn
 from typing import Literal, Annotated, Union, Optional
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator, Field, TypeAdapter
 
-from base import BuildContext
+from lib.components.base import BuildContext
 
 # ---------- Layer Definitions ---------- #
 

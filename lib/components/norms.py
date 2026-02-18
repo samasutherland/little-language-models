@@ -23,20 +23,20 @@ class RMSNormFactory(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: Literal["rmsnorm"] = "rmsnorm"
 
-    embedding_dim: int = 256
+    dim: int = 256
 
     def build(self) -> nn.Module:
-        return nn.RMSNorm(self.embedding_dim)
+        return nn.RMSNorm(self.dim)
 
 
 class LayerNormFactory(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: Literal["layernorm"] = "layernorm"
 
-    embedding_dim: int = 256
+    dim: int = 256
 
     def build(self) -> nn.Module:
-        return nn.LayerNorm(self.embedding_dim)
+        return nn.LayerNorm(self.dim)
 
 # ---------- Layer Registration ---------- #
 

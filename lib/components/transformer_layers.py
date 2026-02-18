@@ -41,8 +41,8 @@ class StandardTransformerLayer(nn.Module):
 
     def forward(self, x):
         x = x[:, -self.attention.max_context:, :]
-        x = x + self.attn_dropout(self.attention(self.attn_norm(x)))
-        x = x + self.ffn_dropout(self.ffn(self.ffn_norm(x)))
+        x = x + self.attn_dropout(self.attention(self.norm(x)))
+        x = x + self.ffn_dropout(self.ffn(self.norm(x)))
         return x
 
 class StandardTransformerLayerFactory(BaseModel):
@@ -50,7 +50,6 @@ class StandardTransformerLayerFactory(BaseModel):
     type: Literal["standardtransformerlayer"] = "standardtransformerlayer"
 
     ctx: BuildContext = BuildContext()
-    positional_encoding_factory: PositionalEncodingFactory = RoPEFactory()
     activation_factory: ActivationFactory = GELUFactory()
     norm_factory: NormFactory = RMSNormFactory()
     attention_factory: AttentionFactory = MultiHeadSelfAttentionFactory()

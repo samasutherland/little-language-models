@@ -31,7 +31,7 @@ class Transformer(nn.Module):
         logits = torch.matmul(x, self.embedding.weight.t())
         return logits
 
-def TransformerFactory(BaseModel):
+class TransformerFactory(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: Literal["transformer"] = "transformer"
 
