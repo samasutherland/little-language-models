@@ -1,8 +1,10 @@
-from typing import Literal, Annotated, Union, Optional
-from pydantic import BaseModel, ConfigDict, field_validator, model_validator, Field, TypeAdapter
+from typing import Literal, Annotated, Union
+from pydantic import BaseModel, ConfigDict, Field
 
-import torch
 from torch import nn
+
+from lib.components.base import BuildContext
+
 
 # ---------- Layer Definitions ---------- #
 
@@ -10,14 +12,11 @@ class StandardEmbeddingLayerFactory(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: Literal["standardembeddinglayer"] = "standardembeddinglayer"
 
-    embedding_dim: int
-
     vocab_size: int
     padding_idx: int
 
-
-    def build(self) -> nn.Module:
-        return nn.Embedding(self.vocab_size, self.embedding_dim, padding_idx=self.padding_idx)
+    def build(self, ctx: BuildContext) -> nn.Module:
+        return nn.Embedding(self.vocab_size, ctx.embedding_dim, padding_idx=self.padding_idx)
 
 # ---------- Layer Registration ---------- #
 

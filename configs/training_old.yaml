@@ -1,0 +1,26 @@
+# Training hyperparameters (legacy layout)
+
+batch_size: 64
+accumulated_batch_size: 256
+loss: CrossEntropyLoss
+optimizer: AdamW
+test_prompt: "The dog"
+base_lr: 0.0046353708021342754
+total_steps: 12914
+tokens_per_param: 20
+training_time: 30
+val_batches: 1
+val_freq: 20
+
+scheduler: OneCycleLR
+warmup_steps: 129
+weight_decay: 0.02
+
+scheduler_kwargs:
+  eta_min: 1.0e-5
+
+optimizer_kwargs:
+  betas:
+    - 0.9
+    - 0.95
+

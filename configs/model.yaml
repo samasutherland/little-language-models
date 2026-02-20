@@ -22,13 +22,16 @@ model_parameters:
     activation_factory:
       type: gelu
 
-    norm_factory:
+    attention_norm_factory:
+      type: rmsnorm
+
+    feedforward_norm_factory:
       type: rmsnorm
 
     attention_factory:
       type: multiheadselfattention
-      qk_dim: 64
       max_context: 512
+      qk_dim: 64
       v_dim: 64
       causal: true
       n_heads: 4

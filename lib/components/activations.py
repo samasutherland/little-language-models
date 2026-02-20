@@ -1,5 +1,5 @@
 from typing import Literal, Annotated, Union, Optional
-from pydantic import BaseModel, ConfigDict, field_validator, model_validator, Field, TypeAdapter
+from pydantic import BaseModel, ConfigDict, model_validator, Field
 
 from torch.nn import Module
 from torch import nn
@@ -9,6 +9,8 @@ from functools import cache
 from torch.cuda.amp import autocast
 
 from torch.nn import *
+
+from lib.components.base import BuildContext
 
 @cache
 def closest_square(batches, features):
@@ -24,7 +26,7 @@ class IdentityFactory(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: Literal["identity"] = "identity"
 
-    def build(self) -> nn.Module:
+    def build(self, ctx: BuildContext) -> nn.Module:
         return nn.Identity()
 
 
@@ -40,7 +42,7 @@ class SVDTruncation(Module):
         - Input: (..., Features)
         - Output: (..., Features)
     """
-    def __init__(self, eps: float=None, k: int=None) -> None:
+    def __init__(self, eps: float | None, k: int | None) -> None:
         super().__init__()
         if eps is None and k is None:
             raise ValueError("Need to specify either eps or k")
@@ -68,15 +70,16 @@ class SVDTruncationFactory(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: Literal["svdtruncation"] = "svdtruncation"
 
-    eps: float | None = 0.01
-    k: int | None = None
+    eps: float | None
+    k: int | None
 
     @model_validator(mode="after")
     def _check(self):
         if self.eps is None and self.k is None:
             raise ValueError("SVDTruncation: specify either eps or k")
+        return self
 
-    def build(self) -> nn.Module:
+    def build(self, ctx: BuildContext) -> nn.Module:
         return SVDTruncation(eps=self.eps, k=self.k)
 
 
@@ -90,10 +93,8 @@ class QRTruncation(Module):
         - Input: (..., Features)
         - Output: (..., Features)
     """
-    def __init__(self, k: int=None) -> None:
+    def __init__(self, k: int) -> None:
         super().__init__()
-        if k is None:
-            raise ValueError("Need to specify either eps or k")
         self.k = k
 
     def forward(self, input: Tensor) -> Tensor:
@@ -116,7 +117,7 @@ class QRTruncationFactory(BaseModel):
 
     k: int
 
-    def build(self) -> nn.Module:
+    def build(self, ctx: BuildContext) -> nn.Module:
         return QRTruncation(k=self.k)
 
 
@@ -162,7 +163,7 @@ class SVDEntropicReductionFactory(BaseModel):
 
     alpha: float
 
-    def build(self) -> nn.Module:
+    def build(self, ctx: BuildContext) -> nn.Module:
         return SVDEntropicReduction(alpha=self.alpha)
 
 
@@ -170,7 +171,7 @@ class GELUFactory(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: Literal["gelu"] = "gelu"
 
-    def build(self) -> nn.Module:
+    def build(self, ctx: BuildContext) -> nn.Module:
         return nn.GELU()
 
 
@@ -178,7 +179,7 @@ class RELUFactory(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: Literal["relu"] = "relu"
 
-    def build(self) -> nn.Module:
+    def build(self, ctx: BuildContext) -> nn.Module:
         return nn.ReLU()
 
 # ---------- Layer Registration ---------- #

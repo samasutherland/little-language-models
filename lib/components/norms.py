@@ -1,14 +1,10 @@
 from typing import Literal, Annotated, Union, Optional
-from pydantic import BaseModel, ConfigDict, field_validator, model_validator, Field, TypeAdapter
+from pydantic import BaseModel, ConfigDict, Field
 
-from torch.nn import Module
 from torch import nn
-from torch import Tensor
-import torch
-from functools import cache
-from torch.cuda.amp import autocast
 
-from torch.nn import *
+from lib.components.base import BuildContext
+
 
 # ---------- Layer Definitions ---------- #
 
@@ -16,29 +12,27 @@ class IdentityFactory(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: Literal["identity"] = "identity"
 
-    def build(self) -> nn.Module:
+    def build(self, ctx: BuildContext) -> nn.Module:
         return nn.Identity()
 
 class RMSNormFactory(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: Literal["rmsnorm"] = "rmsnorm"
 
-    embedding_dim: int
     dim: Optional[int] = None
 
-    def build(self) -> nn.Module:
-        return nn.RMSNorm(self.dim if self.dim is not None else self.embedding_dim)
+    def build(self, ctx: BuildContext) -> nn.Module:
+        return nn.RMSNorm(self.dim if self.dim is not None else ctx.embedding_dim)
 
 
 class LayerNormFactory(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: Literal["layernorm"] = "layernorm"
 
-    embedding_dim: int
     dim: Optional[int] = None
 
-    def build(self) -> nn.Module:
-        return nn.LayerNorm(self.dim if self.dim is not None else self.embedding_dim)
+    def build(self, ctx: BuildContext) -> nn.Module:
+        return nn.LayerNorm(self.dim if self.dim is not None else ctx.embedding_dim)
 
 # ---------- Layer Registration ---------- #
 

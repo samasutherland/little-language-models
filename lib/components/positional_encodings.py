@@ -1,12 +1,14 @@
 import torch
 from torch import nn
-from typing import Literal, Annotated, Union, Optional
-from pydantic import BaseModel, ConfigDict, field_validator, model_validator, Field, TypeAdapter
+from typing import Literal, Annotated, Union
+from pydantic import BaseModel, ConfigDict, Field
+
+from lib.components.base import BuildContext
 
 # ---------- Layer Definitions ---------- #
 
 class RoPE(nn.Module):
-    def __init__(self, max_context, dim, base=10000):
+    def __init__(self, max_context, dim, base):
         super().__init__()
         m_values = torch.arange(max_context, requires_grad=False)
         self.max_context = max_context
@@ -36,16 +38,15 @@ class RoPEFactory(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: Literal["rope"] = "rope"
 
-    base: int = 10000
-    qk_dim: int | None = None
-    max_context: int | None = None
+    base: int
 
-    def build(self) -> nn.Module:
-        assert self.qk_dim is not None, "RoPEFactory.qk_dim must be set before build()"
-        assert self.max_context is not None, "RoPEFactory.max_context must be set before build()"
-        return RoPE(self.max_context, self.qk_dim, base=self.base)
+    def build(self, ctx: BuildContext) -> nn.Module:
+        return RoPE(
+            max_context=ctx.require("max_context"),
+            dim=ctx.require("qk_dim"),
+            base=self.base,
+        )
 
 # ---------- Layer Registration ---------- #
 
 PositionalEncodingFactory = Annotated[Union[RoPEFactory], Field(discriminator="type")]
-
