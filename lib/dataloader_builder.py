@@ -4,12 +4,13 @@ from typing import Dict, Any
 import yaml
 import torch.nn as nn
 
-from lib.model_components import LanguageModelFactory, BuildContext
+from lib.data_components import DataContext, TorchDataLoaderFactory
 
 
-def build_model_from_config(
+
+def build_dataloader_from_config(
     config_path: str | Path,
-    ctx: BuildContext,
+    ctx: DataContext,
 ) -> nn.Module:
     """
     Load a language model from a YAML config file and construct the nn.Module.
@@ -19,8 +20,8 @@ def build_model_from_config(
     with config_path.open("r") as f:
         raw = yaml.safe_load(f)
     model_params: Dict[str, Any] = dict(raw)
-    factory = LanguageModelFactory.model_validate(model_params)
+    factory = TorchDataLoaderFactory.model_validate(model_params)
     return factory.build(ctx)
 
 
-__all__ = ["build_model_from_config"]
+__all__ = ["build_dataloader_from_config"]

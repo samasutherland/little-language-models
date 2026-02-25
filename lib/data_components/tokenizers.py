@@ -14,7 +14,7 @@ class SentencePieceFactory(BaseModel):
     tokenizer_path: str
 
     def build(self, ctx: DataContext) -> SentencePieceProcessor:
-        return SentencePieceProcessor(model_path=self.tokenizer_path)
+        return SentencePieceProcessor(model_file=self.tokenizer_path)
 
 
 TokenizerFactory = Annotated[
