@@ -4,7 +4,7 @@ from pydantic import BaseModel, ConfigDict, Field
 import torch
 from torch import nn
 
-from lib.model_components.base import BuildContext
+from lib.model_components.context import BuildContext
 from lib.model_components.transformer_layers import TransformerLayerFactory
 from lib.model_components.norms import NormFactory
 from lib.model_components.embedding_layers import EmbeddingLayerFactory

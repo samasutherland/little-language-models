@@ -1,0 +1,16 @@
+from pydantic import BaseModel, ConfigDict
+
+
+class DataContext(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    def fork(self, **updates):
+        """Create a new BuildContext with updated values."""
+        return self.model_copy(update=updates)
+    
+    def require(self, name: str):
+        """Assert that a field is present and return it, raising ValueError if missing."""
+        v = getattr(self, name)
+        if v is None:
+            raise ValueError(f"BuildContext missing required field: {name}")
+        return v

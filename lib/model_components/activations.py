@@ -10,7 +10,7 @@ from torch.cuda.amp import autocast
 
 from torch.nn import *
 
-from lib.model_components.base import BuildContext
+from lib.model_components.context import BuildContext
 
 @cache
 def closest_square(batches, features):

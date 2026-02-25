@@ -5,7 +5,7 @@ import yaml
 import torch.nn as nn
 
 from lib.model_components import LanguageModelFactory
-from lib.model_components.base import BuildContext
+from lib.model_components.context import BuildContext
 
 
 def build_model_from_config(
