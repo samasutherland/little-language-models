@@ -79,7 +79,7 @@ class SimpleStoriesBPEDataset(Dataset):
 
 class SimpleStoriesBPEFactory(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    type: Literal["simple_stories_bpe"] = "simple_stories_bpe"
+    type: Literal["simplestoriesbpe"] = "simplestoriesbpe"
 
     tokenizer_factory: TokenizerFactory
 

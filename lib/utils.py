@@ -38,10 +38,7 @@ def generate_sample(model, dataset, device, prompt, n_words=15, max_new_tokens=6
     model.train()
     return " ".join(dataset.tok.decode(ids[0].tolist()).split()[:n_words])
 
-def pad_collate_fn(batch, pad_id):
-    x = torch.nn.utils.rnn.pad_sequence(batch, batch_first=True, padding_value=pad_id)
-    m = (x != pad_id).long()
-    return {"input_ids": x, "attention_mask": m}
+
 
 def loopy_loader(loader):
     while True:
