@@ -1,82 +1,85 @@
-import torch, os, sys
-from torch.optim.lr_scheduler import OneCycleLR, CosineAnnealingLR
-from torch.utils.data import DataLoader
-import time
 import copy
 import gc
-from lib.utils import generate_sample, pad_collate_fn, load_configs, get_data_loader, create_model
-from pathlib import Path
-from tomlkit import parse, dumps
-from functools import partial
-from tqdm import tqdm
-import torchinfo
-from data.datasets import SimpleStoriesBPEDataset
-from datasets import load_dataset
+import torch
+from lib.run_config import load_run_config, load_sweep_spec_for_model_size, persist_num_layers, persist_training_updates
+from lib.data_config import build_dataset_and_loader
+from lib.model_builder import build_model_from_config
 from lib.utils import find_batch_size
 
-LOSS_REGISTRY = {"CrossEntropyLoss": torch.nn.CrossEntropyLoss}
-OPTIMIZER_REGISTRY = {"Adam": torch.optim.Adam, "SGD": torch.optim.SGD}
-SCHEDULER_REGISTRY = {"OneCycleLR": OneCycleLR, "Cosine": CosineAnnealingLR}
+print("Loading configs...")
+run_config = load_run_config()
+data_config = run_config.load_data()
+base_train_config = run_config.load_training()
+sweep = load_sweep_spec_for_model_size()
+
+# Get dataset once for vocab_size and pad_id
+dataset, _, vocab_size, pad_id = build_dataset_and_loader(
+    data_config,
+    base_train_config.batch_size,
+    num_workers=0,
+    loop=False,
+)
+device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
+print("Using", device, "device")
+
+target_tokens_per_param = sweep.target_tokens_per_param
+initial_num_layers = sweep.initial_num_layers
 
 
-print("loading configs...")
-model_cfg_path = Path("configs/model.toml")
-data_cfg_path = Path("configs/data.toml")
-train_cfg_path = Path("configs/training.toml")
-
-model_cfg = parse(model_cfg_path.read_text(encoding="utf-8"))
-data_cfg = parse(data_cfg_path.read_text(encoding="utf-8"))
-train_cfg = parse(train_cfg_path.read_text(encoding="utf-8"))
-
-def calculate_tokens_per_parameter(num_layers, model_cfg, data_cfg, train_cfg):
-    model_cfg["global"]["num_layers"] = num_layers
-    model_cfg, data_cfg, train_cfg, tokens_per_param = find_batch_size(model_cfg, data_cfg, train_cfg)
-    torch.cuda.synchronize()
-    torch.cuda.empty_cache()
+def calculate_tokens_per_parameter(num_layers: int):
+    ctx = run_config.get_build_context(vocab_size, pad_id, num_layers=num_layers)
+    model = build_model_from_config(run_config.model_config_path, ctx=ctx)
+    model = model.to(device=device)
+    updated_train, tokens_per_param = find_batch_size(model, data_config, base_train_config, device)
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
+        torch.cuda.empty_cache()
     gc.collect()
-    # model_cfg, data_cfg, train_cfg, tokens_per_param = find_step_count(model_cfg, data_cfg, train_cfg)
-    # torch.cuda.synchronize()
-    # torch.cuda.empty_cache()
-    # gc.collect()
     print(f"num layers {num_layers} gets {tokens_per_param} tokens per parameter.")
-    return model_cfg, data_cfg, train_cfg, tokens_per_param
+    return updated_train, tokens_per_param
 
-num_layers = 8
-results = {}
-targ_dists = {}
+
+num_layers = initial_num_layers
+results = {}  # num_layers -> updated TrainingConfig
+targ_dists = {}  # num_layers -> distance to target
+
 while True:
-    model_cfg, data_cfg, train_cfg, tokens_per_param = calculate_tokens_per_parameter(num_layers, model_cfg, data_cfg, train_cfg)
-    torch.cuda.synchronize()
-    torch.cuda.empty_cache()
+    updated_train, tokens_per_param = calculate_tokens_per_parameter(num_layers)
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
+        torch.cuda.empty_cache()
     gc.collect()
-    results[num_layers] = (copy.deepcopy(model_cfg), copy.deepcopy(data_cfg), copy.deepcopy(train_cfg))
-    targ_dists[num_layers] = abs(train_cfg["tokens_per_param"] - tokens_per_param)
-    if tokens_per_param < train_cfg["tokens_per_param"]:
+    results[num_layers] = copy.deepcopy(updated_train)
+    targ_dists[num_layers] = abs(target_tokens_per_param - tokens_per_param)
+    if tokens_per_param < target_tokens_per_param:
         break
     num_layers *= 2
 
 lower_bound = num_layers // 2
 upper_bound = num_layers
 
-
 while upper_bound - lower_bound > 1:
     num_layers = lower_bound + (upper_bound - lower_bound) // 2
-    model_cfg, data_cfg, train_cfg, tokens_per_param = calculate_tokens_per_parameter(num_layers, model_cfg, data_cfg,
-                                                                                      train_cfg)
-    targ_dists[num_layers] = abs(train_cfg["tokens_per_param"] - tokens_per_param)
-    torch.cuda.synchronize()
-    torch.cuda.empty_cache()
+    updated_train, tokens_per_param = calculate_tokens_per_parameter(num_layers)
+    targ_dists[num_layers] = abs(target_tokens_per_param - tokens_per_param)
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
+        torch.cuda.empty_cache()
     gc.collect()
-    results[num_layers] = (copy.deepcopy(model_cfg), copy.deepcopy(data_cfg), copy.deepcopy(train_cfg))
-    if tokens_per_param > train_cfg["tokens_per_param"]:
+    results[num_layers] = copy.deepcopy(updated_train)
+    if tokens_per_param > target_tokens_per_param:
         lower_bound = num_layers
     else:
         upper_bound = num_layers
 
 best_num_layers = min(targ_dists, key=targ_dists.get)
-print(f"final num layers: {best_num_layers}")
-model_cfg, data_cfg, train_cfg = results[best_num_layers]
-model_cfg_path.write_text(dumps(model_cfg), encoding="utf-8")
-data_cfg_path.write_text(dumps(data_cfg), encoding="utf-8")
-train_cfg_path.write_text(dumps(train_cfg), encoding="utf-8")
+print("final num layers:", best_num_layers)
+best_train_config = results[best_num_layers]
 
+persist_num_layers(run_config.model_config_path, best_num_layers)
+persist_training_updates(
+    run_config.training_config_path,
+    batch_size=best_train_config.batch_size,
+    total_steps=best_train_config.total_steps,
+    warmup_steps=best_train_config.warmup_steps,
+)

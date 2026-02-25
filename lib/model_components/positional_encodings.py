@@ -3,7 +3,7 @@ from torch import nn
 from typing import Literal, Annotated, Union
 from pydantic import BaseModel, ConfigDict, Field
 
-from lib.components.base import BuildContext
+from lib.model_components.base import BuildContext
 
 # ---------- Layer Definitions ---------- #
 
@@ -41,9 +41,12 @@ class RoPEFactory(BaseModel):
     base: int
 
     def build(self, ctx: BuildContext) -> nn.Module:
+        max_context = ctx.require("max_context")
+        qk_dim = ctx.require("qk_dim")
+
         return RoPE(
-            max_context=ctx.require("max_context"),
-            dim=ctx.require("qk_dim"),
+            max_context=max_context,
+            dim=qk_dim,
             base=self.base,
         )
 

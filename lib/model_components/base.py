@@ -2,12 +2,8 @@ from pydantic import BaseModel, ConfigDict
 
 
 class BuildContext(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    
-    embedding_dim: int
-    qk_dim: int | None = None
-    max_context: int | None = None
-    
+    model_config = ConfigDict(extra="allow")
+
     def fork(self, **updates):
         """Create a new BuildContext with updated values."""
         return self.model_copy(update=updates)

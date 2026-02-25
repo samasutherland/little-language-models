@@ -1,4 +1,4 @@
-from lib.components import *
+from lib.model_components import *
 
 embedding_dim = 256
 

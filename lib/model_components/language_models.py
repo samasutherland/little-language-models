@@ -4,10 +4,10 @@ from pydantic import BaseModel, ConfigDict, Field
 import torch
 from torch import nn
 
-from lib.components.base import BuildContext
-from lib.components.transformer_layers import TransformerLayerFactory
-from lib.components.norms import NormFactory
-from lib.components.embedding_layers import EmbeddingLayerFactory
+from lib.model_components.base import BuildContext
+from lib.model_components.transformer_layers import TransformerLayerFactory
+from lib.model_components.norms import NormFactory
+from lib.model_components.embedding_layers import EmbeddingLayerFactory
 
 
 # ---------- Layer Definitions ---------- #
@@ -38,14 +38,17 @@ class TransformerFactory(BaseModel):
     transformer_layer_factory: TransformerLayerFactory
     final_norm_factory: NormFactory
     embedding_layer_factory: EmbeddingLayerFactory
+
+    embedding_dim: int
     num_layers: int
 
     def build(self, ctx: BuildContext) -> nn.Module:
-        embedding = self.embedding_layer_factory.build(ctx)
+        ctx_fork = ctx.fork(embedding_dim=self.embedding_dim)
+        embedding = self.embedding_layer_factory.build(ctx_fork)
         transformer_stack = nn.Sequential(
-            *[self.transformer_layer_factory.build(ctx) for _ in range(self.num_layers)]
+            *[self.transformer_layer_factory.build(ctx_fork) for _ in range(self.num_layers)]
         )
-        final_norm = self.final_norm_factory.build(ctx)
+        final_norm = self.final_norm_factory.build(ctx_fork)
         
         return Transformer(
             embedding,

@@ -3,17 +3,12 @@ model_parameters:
   num_layers: 2
   embedding_dim: 256
 
-  # Embedding layer factory configuration
   embedding_layer_factory:
     type: standardembeddinglayer
-    vocab_size: 4000
-    padding_idx: 3
 
-  # Final normalization factory configuration
   final_norm_factory:
     type: rmsnorm
 
-  # Transformer layer factory configuration
   transformer_layer_factory:
     type: standardtransformerlayer
     dropout: 0.0

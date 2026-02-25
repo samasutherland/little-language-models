@@ -3,7 +3,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from torch import nn
 
-from lib.components.base import BuildContext
+from lib.model_components.base import BuildContext
 
 
 # ---------- Layer Definitions ---------- #
@@ -22,7 +22,9 @@ class RMSNormFactory(BaseModel):
     dim: Optional[int] = None
 
     def build(self, ctx: BuildContext) -> nn.Module:
-        return nn.RMSNorm(self.dim if self.dim is not None else ctx.embedding_dim)
+        embedding_dim = ctx.require("embedding_dim")
+
+        return nn.RMSNorm(self.dim if self.dim is not None else embedding_dim)
 
 
 class LayerNormFactory(BaseModel):
@@ -32,7 +34,8 @@ class LayerNormFactory(BaseModel):
     dim: Optional[int] = None
 
     def build(self, ctx: BuildContext) -> nn.Module:
-        return nn.LayerNorm(self.dim if self.dim is not None else ctx.embedding_dim)
+        embedding_dim = ctx.require("embedding_dim")
+        return nn.LayerNorm(self.dim if self.dim is not None else embedding_dim)
 
 # ---------- Layer Registration ---------- #
 

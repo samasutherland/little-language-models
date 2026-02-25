@@ -1,21 +1,22 @@
 import torch
-from datasets import load_dataset
 from torch.utils.data import DataLoader
 from functools import partial
-from data.datasets import SimpleStoriesBPEDataset
 import time
 from contextlib import nullcontext
 import os
-import weakref
 import math
 import functools
 from sympy import divisors
 import gc
 from torch import nn
 
-from lib.components import language_models
-
-import tomllib
+from lib.data_config import DataConfig, build_dataset_and_loader
+from lib.training_config import (
+    TrainingConfig,
+    build_optimizer,
+    build_scheduler,
+    build_criterion,
+)
 
 def generate_sample(model, dataset, device, prompt, n_words=15, max_new_tokens=60, temperature=1.0, top_k=50, top_p=0.9):
     model.eval()
@@ -42,76 +43,11 @@ def pad_collate_fn(batch, pad_id):
     m = (x != pad_id).long()
     return {"input_ids": x, "attention_mask": m}
 
-def load_configs():
-    with open("configs/model.toml", "rb") as f:
-        model_cfg = tomllib.load(f)
-    with open("configs/data.toml", "rb") as f:
-        data_cfg = tomllib.load(f)
-    with open("configs/training.toml", "rb") as f:
-        train_cfg = tomllib.load(f)
-
-    return model_cfg, data_cfg, train_cfg
-
 def loopy_loader(loader):
     while True:
         for batch in loader:
             yield batch
 
-def get_data_loader(data_cfg, train_cfg, batch_size=None, split=None, shuffle=True, num_workers=None):
-    if batch_size is None:
-        batch_size = train_cfg["batch_size"]
-    data = load_dataset(data_cfg["dataset"])
-    tokenizer_model_path = data_cfg["tokenizer_path"]
-    dataset = SimpleStoriesBPEDataset(
-        data[data_cfg["split"] if split is None else split],
-        model_path=tokenizer_model_path,
-        max_length=data_cfg["max_length"]
-    )
-
-    collate = partial(pad_collate_fn, pad_id=dataset.pad_id)
-    if num_workers is None:
-        num_workers = 8#os.cpu_count()
-    loader = DataLoader(
-        dataset,
-        batch_size=batch_size,
-        shuffle=shuffle,
-        collate_fn=collate,
-        num_workers=num_workers,
-        persistent_workers=True if num_workers > 1 else False,
-        pin_memory=True,
-        prefetch_factor=8 if num_workers > 1 else None
-    )
-
-    def _finalizer(dataloader):
-        it = getattr(dataloader, "_iterator", None)
-        if it is not None:
-            try:
-                it._shutdown_workers()
-            except Exception:
-                pass
-
-    class _LoopingWrapper:
-        def __init__(self, dataloader):
-            self._underlying_dataloader = dataloader
-            self._gen = loopy_loader(dataloader)
-        def __iter__(self):
-            return self._gen
-
-    import weakref
-    loader = _LoopingWrapper(loader)
-    weakref.finalize(loader, _finalizer, loader._underlying_dataloader)
-
-    vocab_size = dataset.vocab_size
-    return dataset, loader, vocab_size
-
-def create_model(model_cfg, vocab_size, device, dataset):
-    model_cls = getattr(language_models, model_cfg["model"])
-
-    model_cfg["global"] = model_cfg["global"] | {"vocab_size": vocab_size, "padding_idx": dataset.pad_id}
-
-    model = model_cls(model_cfg).to(device=device)
-
-    return model
 
 def get_step_info(model, device, loader, criterion, optimizer, scheduler, its_per_step, timer_start=5, total_steps=10, val_steps=0):
     token_count = 0
@@ -240,88 +176,87 @@ def fibonacci_search(func, func_args=(), func_kwargs=None, lower_bound=1, upper_
     else:
         return lower_bound
 
-def find_batch_size(model_cfg, data_cfg, train_cfg):
-    num_layers = model_cfg['global']['num_layers']
-
+def find_batch_size(
+    model: nn.Module,
+    data_config: DataConfig,
+    train_config: TrainingConfig,
+    device: str,
+) -> tuple[TrainingConfig, float]:
+    """
+    Find max feasible batch size (then halve for safety), compute total_steps and warmup_steps.
+    Returns (updated TrainingConfig, tokens_per_param).
+    """
+    num_layers = len(model.transformer_stack) if hasattr(model, "transformer_stack") else 0
     print(f"Finding batch size for model with {num_layers} layers")
+    print("Getting dataset...")
 
-    print("getting dataset")
-    data = load_dataset(data_cfg["dataset"])
-    dataset = SimpleStoriesBPEDataset(data[data_cfg["split"]], model_path=data_cfg["tokenizer_path"], max_length=data_cfg["max_length"])
+    optimizer = build_optimizer(train_config, model)
+    accumulated = train_config.accumulated_batch_size
+    batch_sizes = list(divisors(accumulated))[::-1]
+    batch_sizes.insert(0, accumulated * 2)
 
-    collate = partial(pad_collate_fn, pad_id=dataset.pad_id)
-
-    vocab_size = dataset.vocab_size
-    device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
-    model = create_model(model_cfg, vocab_size, device, dataset)
-
-    print(f"Using {device} device")
-
-
-    # Define training params
-    criterion = getattr(nn, train_cfg["loss"])(ignore_index=dataset.pad_id)
-    decay, no_decay = [], []
-    for n, p in model.named_parameters():
-        if p.ndim == 1 or n.endswith("bias") or "norm" in n.lower():
-            no_decay.append(p)
-        else:
-            decay.append(p)
-    optimizer = getattr(torch.optim, train_cfg["optimizer"])(
-        [{"params": decay, "weight_decay": train_cfg["weight_decay"]},
-         {"params": no_decay, "weight_decay": 0.0}], lr=train_cfg["base_lr"], **train_cfg["optimizer_kwargs"])
-
-    scheduler = getattr(torch.optim.lr_scheduler, train_cfg["scheduler"])(optimizer, max_lr=train_cfg["base_lr"],
-                                                           total_steps=train_cfg["total_steps"])
-
-    # First scale batch size by 2 until OOM
-    print("finding batch size...")
-    accumulated_batch_size = train_cfg["accumulated_batch_size"]
-    batch_sizes = list(divisors(accumulated_batch_size))[::-1]
-    batch_sizes.insert(0, accumulated_batch_size * 2)
-
-
-    for i, batch_size in enumerate(batch_sizes):
+    batch_size = accumulated  # fallback
+    dataset = None
+    for bs in batch_sizes:
         try:
-            its_per_step = (train_cfg["accumulated_batch_size"] // batch_size) + int(train_cfg["accumulated_batch_size"] % batch_size > 0)
-            dataset, loader, vocab_size = get_data_loader(data_cfg, train_cfg, batch_size=batch_size, num_workers=0)
-            time_per_step, tokens_per_step, loss = get_step_info(model, device, loader, criterion, optimizer, scheduler, its_per_step, timer_start=10, total_steps=110)
-
-            print(f"Batch size {batch_size} passed")
-            break
-
-        except RuntimeError as e:
-            print(f"Batch size {batch_size} causes OOM")
-            if batch_size == 1:
-                raise ValueError("Model too big. Batch size 1 causes OOM.")
+            dataset, loader, vocab_size, pad_id = build_dataset_and_loader(
+                data_config, bs, num_workers=0, loop=False
+            )
+            criterion = build_criterion(train_config, ignore_index=pad_id)
+            its_per_step = (accumulated // bs) + int(accumulated % bs > 0)
+            scheduler = build_scheduler(train_config, optimizer, its_per_step=its_per_step)
+            time_per_step, tokens_per_step, loss = get_step_info(
+                model, device, loader, criterion, optimizer, scheduler,
+                its_per_step, timer_start=10, total_steps=110,
+            )
+            print(f"Batch size {bs} passed")
+            batch_size = bs
             del loader
             gc.collect()
+            break
+        except RuntimeError as e:
+            print(f"Batch size {bs} causes OOM")
+            if bs == 1:
+                raise ValueError("Model too big. Batch size 1 causes OOM.") from e
+            try:
+                del loader
+            except NameError:
+                pass
+            gc.collect()
 
-    del loader
     gc.collect()
-
-    batch_size = batch_size // 2 # half it - was getting random OOM in the actual training run.
-
+    batch_size = batch_size // 2  # half for safety
     print(f"Final batch size: {batch_size}")
-    train_cfg["batch_size"] = batch_size
 
-    print(f"Calculating step count")
-    its_per_step = (train_cfg["accumulated_batch_size"] // batch_size) + int(
-        train_cfg["accumulated_batch_size"] % batch_size > 0)
-
-    dataset, loader, vocab_size = get_data_loader(data_cfg, train_cfg, batch_size=batch_size, num_workers=0)
-    time_per_step, tokens_per_step, loss = get_step_info(model, device, loader, criterion, optimizer, scheduler,
-                                                         its_per_step, timer_start=10, total_steps=110)
-
+    its_per_step = (accumulated // batch_size) + int(accumulated % batch_size > 0)
+    if dataset is None:
+        dataset, loader, _, _ = build_dataset_and_loader(
+            data_config, batch_size, num_workers=0, loop=False
+        )
+    else:
+        _, loader, _, _ = build_dataset_and_loader(
+            data_config, batch_size, num_workers=0, loop=False
+        )
+    criterion = build_criterion(train_config, ignore_index=dataset.pad_id)
+    scheduler = build_scheduler(train_config, optimizer, its_per_step=its_per_step)
+    time_per_step, tokens_per_step, loss = get_step_info(
+        model, device, loader, criterion, optimizer, scheduler,
+        its_per_step, timer_start=10, total_steps=110,
+    )
     del loader
     gc.collect()
 
-
-    total_steps = int((train_cfg["training_time"] * 60) / time_per_step)
+    total_steps = int((train_config.training_time * 60) / time_per_step)
     total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     total_tokens = int(tokens_per_step * total_steps)
-    print(f"Estimated total steps: {total_steps}\n Estimated total tokens: {total_tokens} (tokens/param: {total_tokens / total_params:.2f})")
+    tokens_per_param = total_tokens / total_params
+    print(f"Estimated total steps: {total_steps}\n Estimated total tokens: {total_tokens} (tokens/param: {tokens_per_param:.2f})")
 
-    train_cfg["total_steps"] = total_steps
-    train_cfg["warmup_steps"] = max(10, total_steps // 100)
-
-    return model_cfg, data_cfg, train_cfg, total_tokens / total_params
+    updated = train_config.model_copy(
+        update={
+            "batch_size": batch_size,
+            "total_steps": total_steps,
+            "warmup_steps": max(10, total_steps // 100),
+        }
+    )
+    return updated, tokens_per_param

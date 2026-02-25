@@ -1,106 +1,84 @@
-import torch, os, sys
-from torch.optim.lr_scheduler import OneCycleLR, CosineAnnealingLR
-from torch.utils.data import DataLoader
-import time
-import copy
 import gc
-from lib.utils import generate_sample, pad_collate_fn, load_configs, get_data_loader, create_model, get_step_info
-from pathlib import Path
-from tomlkit import parse, dumps
-from functools import partial
-from tqdm import tqdm
-import torchinfo
-from data.datasets import SimpleStoriesBPEDataset
-from datasets import load_dataset
+import os
+import torch
+from lib.run_config import load_run_config, load_sweep_spec_for_lr, persist_training_updates
+from lib.data_config import build_dataset_and_loader
+from lib.model_builder import build_model_from_config
+from lib.training_config import build_optimizer, build_scheduler, build_criterion
+from lib.utils import get_step_info
 
-LOSS_REGISTRY = {"CrossEntropyLoss": torch.nn.CrossEntropyLoss}
-OPTIMIZER_REGISTRY = {"Adam": torch.optim.Adam, "SGD": torch.optim.SGD, "AdamW": torch.optim.AdamW}
-SCHEDULER_REGISTRY = {"OneCycleLR": OneCycleLR, "Cosine": CosineAnnealingLR}
+print("Loading configs...")
+run_config = load_run_config()
+data_config = run_config.load_data()
+train_config = run_config.load_training()
+sweep = load_sweep_spec_for_lr()
 
-
-print("loading configs...")
-model_cfg_path = Path("configs/model.toml")
-data_cfg_path = Path("configs/data.toml")
-train_cfg_path = Path("configs/training.toml")
-
-model_cfg = parse(model_cfg_path.read_text(encoding="utf-8"))
-data_cfg = parse(data_cfg_path.read_text(encoding="utf-8"))
-train_cfg = parse(train_cfg_path.read_text(encoding="utf-8"))
-
-print("getting dataset")
-data = load_dataset(data_cfg["dataset"])
-dataset = SimpleStoriesBPEDataset(data[data_cfg["split"]], model_path=data_cfg["tokenizer_path"], max_length=data_cfg["max_length"])
-
-collate = partial(pad_collate_fn, pad_id=dataset.pad_id)
-
-vocab_size = dataset.vocab_size
+print("Getting dataset...")
+dataset, loader, vocab_size, pad_id = build_dataset_and_loader(
+    data_config,
+    train_config.batch_size,
+    shuffle=False,
+    loop=False,
+)
 device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
+print("Using", device, "device")
 
-print(f"Using {device} device")
+train_steps = train_config.total_steps // max(1, int(train_config.training_time))
+train_steps = max(train_steps, train_config.warmup_steps * 2)
+val_steps = sweep.val_steps_per_trial
+print(f"train_steps: {train_steps}, warmup_steps: {train_config.warmup_steps}")
 
-
-# Define training params
-criterion = LOSS_REGISTRY[train_cfg["loss"]](ignore_index=dataset.pad_id)
-
-
-peak_frac = train_cfg["warmup_steps"] / train_cfg["total_steps"]
-print(f"peak_frac: {peak_frac}")
-
-train_steps = train_cfg["total_steps"] // train_cfg["training_time"]
-train_steps = max(train_steps, train_cfg["warmup_steps"] * 2)
-print(f"train_steps: {train_steps}, warmup_steps: {train_cfg['warmup_steps']}")
-if train_steps < train_cfg["warmup_steps"] * 2:
-    print("warmup steps less than half trian steps - inaccurate results to follow!")
-
-# This should take 10 minutes
-print("finding best learning rate...")
-min = -5
-max = -1
-lrs = torch.logspace(min, max, 10)
-
+lrs = torch.logspace(sweep.lr_min_exp, sweep.lr_max_exp, sweep.num_lr_trials)
 losses = []
-last_loss = torch.inf
-dataset, loader, vocab_size = get_data_loader(data_cfg, train_cfg, shuffle=False)
+last_loss = float("inf")
+
+print("Finding best learning rate...")
 for lr in lrs:
+    lr_f = float(lr.item())
     torch.manual_seed(42)
-    model = create_model(model_cfg, vocab_size, device, dataset)
-    num_workers = os.cpu_count()
-
-    decay, no_decay = [], []
-    for n, p in model.named_parameters():
-        if p.ndim == 1 or n.endswith("bias") or "norm" in n.lower():
-            no_decay.append(p)
-        else:
-            decay.append(p)
-    optimizer = OPTIMIZER_REGISTRY[train_cfg["optimizer"]](
-        [{"params": decay, "weight_decay": train_cfg["weight_decay"]},
-         {"params": no_decay, "weight_decay": 0.0}], lr=lr, **train_cfg["optimizer_kwargs"])
-    its_per_step = (train_cfg["accumulated_batch_size"] // train_cfg["batch_size"]) + int(train_cfg["accumulated_batch_size"] % train_cfg["batch_size"] > 0)
-    scheduler = SCHEDULER_REGISTRY[train_cfg["scheduler"]](optimizer, max_lr=lr,
-                                                           total_steps=train_cfg["total_steps"] // its_per_step, pct_start=peak_frac,
-                                                           div_factor=3., final_div_factor=10.)
-
-    _, _, loss = get_step_info(model, device, loader, criterion, optimizer, scheduler, its_per_step, timer_start=0, total_steps=train_steps, val_steps=20)
-    print(f"lr {lr} achieved loss {loss}")
-    losses.append(loss)
-    if loss > last_loss:
+    ctx = run_config.get_build_context(vocab_size, pad_id)
+    model = build_model_from_config(run_config.model_config_path, ctx=ctx)
+    model = model.to(device=device)
+    criterion = build_criterion(train_config, ignore_index=pad_id)
+    optimizer = build_optimizer(train_config, model, lr=lr_f)
+    its_per_step = train_config.its_per_step()
+    scheduler = build_scheduler(
+        train_config,
+        optimizer,
+        its_per_step=its_per_step,
+        total_training_steps=train_steps * its_per_step,
+        warmup_steps=train_config.warmup_steps,
+        max_lr=lr_f,
+    )
+    _, _, loss = get_step_info(
+        model,
+        device,
+        loader,
+        criterion,
+        optimizer,
+        scheduler,
+        its_per_step,
+        timer_start=0,
+        total_steps=train_steps,
+        val_steps=val_steps,
+    )
+    loss_val = loss.item() if hasattr(loss, "item") else float(loss)
+    print(f"lr {lr_f} achieved loss {loss_val}")
+    losses.append(loss_val)
+    if loss_val > last_loss:
         break
-    last_loss = loss
+    last_loss = loss_val
+    del model, optimizer, scheduler, criterion
+    gc.collect()
 
 del loader
 gc.collect()
 
-losses = torch.tensor(losses, dtype=torch.float32)
-mask = torch.isfinite(losses)
+losses_t = torch.tensor(losses, dtype=torch.float32)
+mask = torch.isfinite(losses_t)
 if not torch.any(mask):
     raise RuntimeError("All LR trials produced non-finite losses.")
-best_lr = float(lrs[torch.where(mask)[0][torch.argmin(losses[mask])].item()].item())
-
+best_idx = torch.argmin(losses_t[mask]).item()
+best_lr = float(lrs[torch.where(mask)[0][best_idx]].item())
 print(f"Best learning rate: {best_lr}")
-train_cfg["base_lr"] = best_lr
-train_cfg_path.write_text(dumps(train_cfg), encoding="utf-8")
-
-
-
-
-
+persist_training_updates(run_config.training_config_path, base_lr=best_lr)

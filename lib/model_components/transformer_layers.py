@@ -3,10 +3,10 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from torch import nn
 
-from lib.components.base import BuildContext
-from lib.components.attention_layers import AttentionFactory
-from lib.components.activations import ActivationFactory, IdentityFactory
-from lib.components.norms import NormFactory
+from lib.model_components.base import BuildContext
+from lib.model_components.attention_layers import AttentionFactory
+from lib.model_components.activations import ActivationFactory, IdentityFactory
+from lib.model_components.norms import NormFactory
 
 
 # ---------- Layer Definitions ---------- #
@@ -32,7 +32,7 @@ class StandardTransformerLayer(nn.Module):
         self.attention = attention
 
         if isinstance(activation, nn.Identity):
-            self.ffn = nn.Identity()  # Identity activation collapses ff layers to no-op.
+            self.ffn = nn.Identity()  # Identity activation collapses ff layers to no-op. Since the output of the attention is a matmul, including further matmuls that end in the same dimension adds no more computational power at the cost of more storage and computation cost, since the matrices can be multiplied to a single matrix. So, replace the layers here with identity for equivalent computational power.
         else:
             self.ffn = nn.Sequential(
                 nn.Linear(embedding_dim, feedforward_dim),
@@ -64,13 +64,15 @@ class StandardTransformerLayerFactory(BaseModel):
         attention_norm = self.attention_norm_factory.build(ctx)
         feedforward_norm = self.feedforward_norm_factory.build(ctx)
         attention = self.attention_factory.build(ctx)
+
+        embedding_dim = ctx.require("embedding_dim")
         
         return StandardTransformerLayer(
             activation,
             attention_norm,
             feedforward_norm,
             attention,
-            embedding_dim=ctx.embedding_dim,
+            embedding_dim=embedding_dim,
             dropout=self.dropout,
             feedforward_dim=self.feedforward_dim,
         )

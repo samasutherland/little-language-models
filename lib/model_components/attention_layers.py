@@ -4,8 +4,8 @@ from torch.nn import functional as F
 from typing import Literal, Annotated, Union
 from pydantic import BaseModel, ConfigDict, Field
 
-from lib.components.base import BuildContext
-from lib.components.positional_encodings import PositionalEncodingFactory
+from lib.model_components.base import BuildContext
+from lib.model_components.positional_encodings import PositionalEncodingFactory
 
 # ---------- Layer Definitions ---------- #
 
@@ -69,7 +69,7 @@ class MultiHeadSelfAttention(nn.Module):
                                                                            2)  # self.v_rope(v.view(batch_dim, seq_len, self.n_heads, self.v_dim).transpose(1,2)) # batch, n_heads, seq, v_dim
 
         if self.sdpa:
-            attn_output = F.scaled_dot_product_attention(q, k, v, is_causal=self.causal, dropout_p=self.dropout)
+            attn_output = F.scaled_dot_product_attention(q, k, v, is_causal=self.causal, dropout_p=self.dropout if (self.dropout > 0 and self.training) else 0.0)
         else:
 
             attn_scores = q @ k.transpose(2, 3) * self.inv_sqrt_qk_dim  # batch, n_heads, seq, seq
@@ -103,16 +103,15 @@ class MultiHeadSelfAttentionFactory(BaseModel):
     reproject: bool
 
     def build(self, ctx: BuildContext) -> nn.Module:
-        qk_dim = self.qk_dim
-        
-        # Fork ctx with qk_dim and max_context for positional encoding
-        ctx2 = ctx.fork(qk_dim=qk_dim, max_context=self.max_context)
-        positional_encoding = self.positional_encoding_factory.build(ctx2)
+        ctx_fork = ctx.fork(qk_dim=self.qk_dim, max_context=self.max_context)
+        positional_encoding = self.positional_encoding_factory.build(ctx_fork)
+
+        embedding_dim = ctx.require("embedding_dim")
         
         return MultiHeadSelfAttention(
             positional_encoding,
-            embedding_dim=ctx.embedding_dim,
-            qk_dim=qk_dim,
+            embedding_dim=embedding_dim,
+            qk_dim=self.qk_dim,
             max_context=self.max_context,
             v_dim=self.v_dim,
             causal=self.causal,
@@ -170,16 +169,15 @@ class LatentMultiHeadSelfAttentionFactory(BaseModel):
     reproject: bool
 
     def build(self, ctx: BuildContext) -> nn.Module:
-        qk_dim = self.qk_dim
-        
-        # Fork ctx with qk_dim and max_context for positional encoding
-        ctx2 = ctx.fork(qk_dim=qk_dim, max_context=self.max_context)
-        positional_encoding = self.positional_encoding_factory.build(ctx2)
+        ctx_fork = ctx.fork(qk_dim=self.qk_dim, max_context=self.max_context)
+        positional_encoding = self.positional_encoding_factory.build(ctx_fork)
+
+        embedding_dim = ctx.require("embedding_dim")
         
         return LatentMultiHeadSelfAttention(
             positional_encoding,
-            embedding_dim=ctx.embedding_dim,
-            qk_dim=qk_dim,
+            embedding_dim=embedding_dim,
+            qk_dim=self.qk_dim,
             max_context=self.max_context,
             projection_dim=self.projection_dim,
             v_dim=self.v_dim,
