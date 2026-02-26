@@ -1,9 +1,9 @@
 import torch
 from torch import nn
 from typing import Literal, Annotated, Union
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
 
-from lib.model_components.context import BuildContext
+from lib import Context, Factory
 
 # ---------- Layer Definitions ---------- #
 
@@ -34,13 +34,13 @@ class RoPE(nn.Module):
         return x_rotated
 
 
-class RoPEFactory(BaseModel):
+class RoPEFactory(Factory[nn.Module]):
     model_config = ConfigDict(extra="forbid")
     type: Literal["rope"] = "rope"
 
     base: int
 
-    def build(self, ctx: BuildContext) -> nn.Module:
+    def build(self, ctx: Context) -> nn.Module:
         max_context = ctx.require("max_context")
         qk_dim = ctx.require("qk_dim")
 

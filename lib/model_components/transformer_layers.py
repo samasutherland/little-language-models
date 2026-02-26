@@ -1,11 +1,11 @@
 from typing import Literal, Annotated, Union
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
 
 from torch import nn
 
-from lib.model_components.context import BuildContext
+from lib import Context, Factory
 from lib.model_components.attention_layers import AttentionFactory
-from lib.model_components.activations import ActivationFactory, IdentityFactory
+from lib.model_components.activations import ActivationFactory
 from lib.model_components.norms import NormFactory
 
 
@@ -47,7 +47,7 @@ class StandardTransformerLayer(nn.Module):
         x = x + self.ffn_dropout(self.ffn(self.feedforward_norm(x)))
         return x
 
-class StandardTransformerLayerFactory(BaseModel):
+class StandardTransformerLayerFactory(Factory[nn.Module]):
     model_config = ConfigDict(extra="forbid")
     type: Literal["standardtransformerlayer"] = "standardtransformerlayer"
 
@@ -59,7 +59,7 @@ class StandardTransformerLayerFactory(BaseModel):
     dropout: float
     feedforward_dim: int
 
-    def build(self, ctx: BuildContext) -> nn.Module:
+    def build(self, ctx: Context) -> nn.Module:
         activation = self.activation_factory.build(ctx)
         attention_norm = self.attention_norm_factory.build(ctx)
         feedforward_norm = self.feedforward_norm_factory.build(ctx)

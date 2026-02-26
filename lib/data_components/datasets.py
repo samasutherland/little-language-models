@@ -1,7 +1,7 @@
 from typing import Optional, Literal, Annotated, Union
 import warnings
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
 
 from datasets import load_dataset
 
@@ -10,7 +10,7 @@ from torch.utils.data import Dataset
 import torch
 
 from lib.data_components.tokenizers import TokenizerFactory
-from lib.data_components.context import DataContext
+from lib import Context, Factory
 
 class _TokWrap:
     # Wrapper for a SentencePieceProcessor. This is necessary for multi-gpu as the base class cannot be pickled.
@@ -77,7 +77,7 @@ class SimpleStoriesBPEDataset(Dataset):
         return torch.tensor(ids, dtype=torch.long)
 
 
-class SimpleStoriesBPEFactory(BaseModel):
+class SimpleStoriesBPEFactory(Factory[SimpleStoriesBPEDataset]):
     model_config = ConfigDict(extra="forbid")
     type: Literal["simplestoriesbpe"] = "simplestoriesbpe"
 
@@ -86,7 +86,7 @@ class SimpleStoriesBPEFactory(BaseModel):
     dataset: str
     max_length: Optional[int]
 
-    def build(self, ctx: DataContext) -> SimpleStoriesBPEDataset:
+    def build(self, ctx: Context) -> SimpleStoriesBPEDataset:
         split = ctx.require("split")
 
         data = load_dataset(self.dataset)

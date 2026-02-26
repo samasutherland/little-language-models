@@ -1,10 +1,10 @@
 from typing import Literal, Annotated, Union
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
 
 import torch
 from torch import nn
 
-from lib.model_components.context import BuildContext
+from lib import Context, Factory
 from lib.model_components.transformer_layers import TransformerLayerFactory
 from lib.model_components.norms import NormFactory
 from lib.model_components.embedding_layers import EmbeddingLayerFactory
@@ -31,7 +31,7 @@ class Transformer(nn.Module):
         logits = torch.matmul(x, self.embedding.weight.t())
         return logits
 
-class TransformerFactory(BaseModel):
+class TransformerFactory(Factory[nn.Module]):
     model_config = ConfigDict(extra="forbid")
     type: Literal["transformer"] = "transformer"
 
@@ -42,7 +42,7 @@ class TransformerFactory(BaseModel):
     embedding_dim: int
     num_layers: int
 
-    def build(self, ctx: BuildContext) -> nn.Module:
+    def build(self, ctx: Context) -> nn.Module:
         ctx_fork = ctx.fork(embedding_dim=self.embedding_dim)
         embedding = self.embedding_layer_factory.build(ctx_fork)
         transformer_stack = nn.Sequential(

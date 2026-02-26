@@ -1,16 +1,13 @@
-from typing import Literal, Annotated, Union, Optional
-from pydantic import BaseModel, ConfigDict, model_validator, Field
+from typing import Literal, Annotated, Union
+from pydantic import ConfigDict, model_validator, Field
 
-from torch.nn import Module
 from torch import nn
 from torch import Tensor
 import torch
 from functools import cache
 from torch.cuda.amp import autocast
 
-from torch.nn import *
-
-from lib.model_components.context import BuildContext
+from lib import Factory, Context
 
 @cache
 def closest_square(batches, features):
@@ -22,15 +19,15 @@ def closest_square(batches, features):
 
 # ---------- Layer Definitions ---------- #
 
-class IdentityFactory(BaseModel):
+class IdentityFactory(Factory[nn.Module]):
     model_config = ConfigDict(extra="forbid")
     type: Literal["identity"] = "identity"
 
-    def build(self, ctx: BuildContext) -> nn.Module:
+    def build(self, ctx: Context) -> nn.Module:
         return nn.Identity()
 
 
-class SVDTruncation(Module):
+class SVDTruncation(nn.Module):
     r"""Truncates the singular values of a reshaped vector using SVD. Truncates via singular value count or via thresholding.
 
     Args:
@@ -66,7 +63,7 @@ class SVDTruncation(Module):
         S = S * mask
         return torch.bmm(U * S.unsqueeze(-2), Vh).reshape(input.shape).to(dtype=input.dtype)
 
-class SVDTruncationFactory(BaseModel):
+class SVDTruncationFactory(Factory[nn.Module]):
     model_config = ConfigDict(extra="forbid")
     type: Literal["svdtruncation"] = "svdtruncation"
 
@@ -79,11 +76,11 @@ class SVDTruncationFactory(BaseModel):
             raise ValueError("SVDTruncation: specify either eps or k")
         return self
 
-    def build(self, ctx: BuildContext) -> nn.Module:
+    def build(self, ctx: Context) -> nn.Module:
         return SVDTruncation(eps=self.eps, k=self.k)
 
 
-class QRTruncation(Module):
+class QRTruncation(nn.Module):
     r"""Truncates the rank of a reshaped vector using QR.
 
     Args:
@@ -111,17 +108,17 @@ class QRTruncation(Module):
 
         return output.reshape(input.shape).to(dtype=input.dtype)
 
-class QRTruncationFactory(BaseModel):
+class QRTruncationFactory(Factory[nn.Module]):
     model_config = ConfigDict(extra="forbid")
     type: Literal["qrtruncation"] = "qrtruncation"
 
     k: int
 
-    def build(self, ctx: BuildContext) -> nn.Module:
+    def build(self, ctx: Context) -> nn.Module:
         return QRTruncation(k=self.k)
 
 
-class SVDEntropicReduction(Module):
+class SVDEntropicReduction(nn.Module):
     r"""Reduces the entropy of the singular values of a reshaped vector using SVD.
     Modifies the singular values with via:
     u_i = x_i^\alpha
@@ -131,7 +128,7 @@ class SVDEntropicReduction(Module):
     hence decreasing the entropy.
 
     Args:
-        alha (float, required): Strength of the entropic reduction. must be >1:
+        alpha (float, required): Strength of the entropic reduction. must be >1:
             Default: ``None``
 
     Shape:
@@ -157,29 +154,29 @@ class SVDEntropicReduction(Module):
 
         return torch.bmm(U * S.unsqueeze(-2), Vh).reshape(input.shape).to(dtype=input.dtype)
 
-class SVDEntropicReductionFactory(BaseModel):
+class SVDEntropicReductionFactory(Factory[nn.Module]):
     model_config = ConfigDict(extra="forbid")
     type: Literal["svdentropicreduction"] = "svdentropicreduction"
 
     alpha: float
 
-    def build(self, ctx: BuildContext) -> nn.Module:
+    def build(self, ctx: Context) -> nn.Module:
         return SVDEntropicReduction(alpha=self.alpha)
 
 
-class GELUFactory(BaseModel):
+class GELUFactory(Factory[nn.Module]):
     model_config = ConfigDict(extra="forbid")
     type: Literal["gelu"] = "gelu"
 
-    def build(self, ctx: BuildContext) -> nn.Module:
+    def build(self, ctx: Context) -> nn.Module:
         return nn.GELU()
 
 
-class RELUFactory(BaseModel):
+class RELUFactory(Factory[nn.Module]):
     model_config = ConfigDict(extra="forbid")
     type: Literal["relu"] = "relu"
 
-    def build(self, ctx: BuildContext) -> nn.Module:
+    def build(self, ctx: Context) -> nn.Module:
         return nn.ReLU()
 
 # ---------- Layer Registration ---------- #

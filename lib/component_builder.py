@@ -1,16 +1,18 @@
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, TypeVar
 
 import yaml
 import torch.nn as nn
 
+from lib.base_classes import Context, Factory, T
 
+F = TypeVar("F", bound=Factory)
 
 def build_component_from_config(
-    factory,#: Factory
+    factory: F,
     config_path: str | Path,
-    ctx,#: Context
-) -> nn.Module:
+    ctx: Context,
+) -> T:
     """
     Build a components from the component factory and a YAML config file.
     ctx: context required by factory class.
@@ -23,4 +25,4 @@ def build_component_from_config(
     return builder.build(ctx)
 
 
-__all__ = ["build_dataloader_from_config"]
+__all__ = ["build_component_from_config"]

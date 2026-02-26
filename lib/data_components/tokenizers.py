@@ -1,19 +1,19 @@
-from typing import Optional, Literal, Annotated, Union
+from typing import Literal, Annotated, Union
 from sentencepiece import SentencePieceProcessor
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
 
-from lib.data_components.context import DataContext
+from lib import Context, Factory
 
 
 
-class SentencePieceFactory(BaseModel):
+class SentencePieceFactory(Factory[SentencePieceProcessor]):
     model_config = ConfigDict(extra="forbid")
     type: Literal["sentencepiece"] = "sentencepiece"
 
     tokenizer_path: str
 
-    def build(self, ctx: DataContext) -> SentencePieceProcessor:
+    def build(self, ctx: Context) -> SentencePieceProcessor:
         return SentencePieceProcessor(model_file=self.tokenizer_path)
 
 

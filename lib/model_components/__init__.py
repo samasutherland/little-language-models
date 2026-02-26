@@ -5,7 +5,6 @@ from .attention_layers import AttentionFactory
 from .norms import NormFactory
 from .activations import ActivationFactory
 from .transformer_layers import TransformerLayerFactory
-from .context import BuildContext
 
 __all__ = [
     "LanguageModelFactory",
@@ -15,5 +14,4 @@ __all__ = [
     "NormFactory",
     "ActivationFactory",
     "TransformerLayerFactory",
-    "BuildContext",
 ]

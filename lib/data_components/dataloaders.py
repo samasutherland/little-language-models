@@ -1,12 +1,12 @@
 from typing import Literal, Annotated, Union
 from functools import partial
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
 
 from torch.utils.data import DataLoader
 import torch
 
-from lib.data_components.context import DataContext
+from lib import Context, Factory
 from lib.data_components.datasets import DatasetFactory
 
 def pad_collate_fn(batch, pad_id):
@@ -14,7 +14,7 @@ def pad_collate_fn(batch, pad_id):
     m = (x != pad_id).long()
     return {"input_ids": x, "attention_mask": m}
 
-class TorchDataLoaderFactory(BaseModel):
+class TorchDataLoaderFactory(Factory[DataLoader]):
     model_config = ConfigDict(extra="forbid")
     type: Literal["torchdataloader"] = "torchdataloader"
 
@@ -24,7 +24,7 @@ class TorchDataLoaderFactory(BaseModel):
     shuffle: bool
     prefetch_factor: int
 
-    def build(self, ctx: DataContext) -> DataLoader:
+    def build(self, ctx: Context) -> DataLoader:
         dataset = self.dataset_factory.build(ctx)
 
         collate = partial(pad_collate_fn, pad_id=dataset.pad_id)

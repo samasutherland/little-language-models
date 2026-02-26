@@ -2,9 +2,9 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 from typing import Literal, Annotated, Union
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
 
-from lib.model_components.context import BuildContext
+from lib import Context, Factory
 from lib.model_components.positional_encodings import PositionalEncodingFactory
 
 # ---------- Layer Definitions ---------- #
@@ -87,7 +87,7 @@ class MultiHeadSelfAttention(nn.Module):
         return self.reproject(attn_output.transpose(1, 2).reshape(batch_dim, seq_len,
                                                                   self.v_dim * self.n_heads))  # batch, seq, embedding_dim
 
-class MultiHeadSelfAttentionFactory(BaseModel):
+class MultiHeadSelfAttentionFactory(Factory[nn.Module]):
     model_config = ConfigDict(extra="forbid")
     type: Literal["multiheadselfattention"] = "multiheadselfattention"
 
@@ -102,7 +102,7 @@ class MultiHeadSelfAttentionFactory(BaseModel):
     dropout: float
     reproject: bool
 
-    def build(self, ctx: BuildContext) -> nn.Module:
+    def build(self, ctx: Context) -> nn.Module:
         ctx_fork = ctx.fork(qk_dim=self.qk_dim, max_context=self.max_context)
         positional_encoding = self.positional_encoding_factory.build(ctx_fork)
 
@@ -152,7 +152,7 @@ class LatentMultiHeadSelfAttention(MultiHeadSelfAttention):
         self.kv = nn.Sequential(nn.Linear(embedding_dim, projection_dim), nn.Linear(projection_dim, (
                     self.qk_dim + v_dim) * n_heads))  # Grouped matrix for the heads and k and v
 
-class LatentMultiHeadSelfAttentionFactory(BaseModel):
+class LatentMultiHeadSelfAttentionFactory(Factory[nn.Module]):
     model_config = ConfigDict(extra="forbid")
     type: Literal["latentmultiheadselfattention"] = "latentmultiheadselfattention"
 
@@ -168,7 +168,7 @@ class LatentMultiHeadSelfAttentionFactory(BaseModel):
     dropout: float
     reproject: bool
 
-    def build(self, ctx: BuildContext) -> nn.Module:
+    def build(self, ctx: Context) -> nn.Module:
         ctx_fork = ctx.fork(qk_dim=self.qk_dim, max_context=self.max_context)
         positional_encoding = self.positional_encoding_factory.build(ctx_fork)
 

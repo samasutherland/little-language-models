@@ -1,18 +1,18 @@
 from typing import Literal, Annotated, Union
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
 
 from torch import nn
 
-from lib.model_components.context import BuildContext
+from lib import Context, Factory
 
 
 # ---------- Layer Definitions ---------- #
 
-class StandardEmbeddingLayerFactory(BaseModel):
+class StandardEmbeddingLayerFactory(Factory[nn.Module]):
     model_config = ConfigDict(extra="forbid")
     type: Literal["standardembeddinglayer"] = "standardembeddinglayer"
 
-    def build(self, ctx: BuildContext) -> nn.Module:
+    def build(self, ctx: Context) -> nn.Module:
         vocab_size = ctx.require("vocab_size")
         padding_idx = ctx.require("padding_idx")
         embedding_dim = ctx.require("embedding_dim")
