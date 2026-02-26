@@ -9,14 +9,14 @@ from lib import Factory, Context
 # ---------- Layer Definitions ---------- #
 
 class IdentityFactory(Factory[nn.Module]):
-    model_config = ConfigDict(extra="forbid")
+    
     type: Literal["identity"] = "identity"
 
     def build(self, ctx: Context) -> nn.Module:
         return nn.Identity()
 
 class RMSNormFactory(Factory[nn.Module]):
-    model_config = ConfigDict(extra="forbid")
+    
     type: Literal["rmsnorm"] = "rmsnorm"
 
     dim: Optional[int] = None
@@ -28,7 +28,7 @@ class RMSNormFactory(Factory[nn.Module]):
 
 
 class LayerNormFactory(Factory[nn.Module]):
-    model_config = ConfigDict(extra="forbid")
+    
     type: Literal["layernorm"] = "layernorm"
 
     dim: Optional[int] = None

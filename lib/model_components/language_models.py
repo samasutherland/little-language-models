@@ -32,7 +32,7 @@ class Transformer(nn.Module):
         return logits
 
 class TransformerFactory(Factory[nn.Module]):
-    model_config = ConfigDict(extra="forbid")
+    
     type: Literal["transformer"] = "transformer"
 
     transformer_layer_factory: TransformerLayerFactory

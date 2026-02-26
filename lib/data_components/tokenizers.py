@@ -8,7 +8,7 @@ from lib import Context, Factory
 
 
 class SentencePieceFactory(Factory[SentencePieceProcessor]):
-    model_config = ConfigDict(extra="forbid")
+    
     type: Literal["sentencepiece"] = "sentencepiece"
 
     tokenizer_path: str

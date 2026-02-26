@@ -20,7 +20,7 @@ def closest_square(batches, features):
 # ---------- Layer Definitions ---------- #
 
 class IdentityFactory(Factory[nn.Module]):
-    model_config = ConfigDict(extra="forbid")
+    
     type: Literal["identity"] = "identity"
 
     def build(self, ctx: Context) -> nn.Module:
@@ -64,7 +64,7 @@ class SVDTruncation(nn.Module):
         return torch.bmm(U * S.unsqueeze(-2), Vh).reshape(input.shape).to(dtype=input.dtype)
 
 class SVDTruncationFactory(Factory[nn.Module]):
-    model_config = ConfigDict(extra="forbid")
+    
     type: Literal["svdtruncation"] = "svdtruncation"
 
     eps: float | None
@@ -109,7 +109,7 @@ class QRTruncation(nn.Module):
         return output.reshape(input.shape).to(dtype=input.dtype)
 
 class QRTruncationFactory(Factory[nn.Module]):
-    model_config = ConfigDict(extra="forbid")
+    
     type: Literal["qrtruncation"] = "qrtruncation"
 
     k: int
@@ -155,7 +155,7 @@ class SVDEntropicReduction(nn.Module):
         return torch.bmm(U * S.unsqueeze(-2), Vh).reshape(input.shape).to(dtype=input.dtype)
 
 class SVDEntropicReductionFactory(Factory[nn.Module]):
-    model_config = ConfigDict(extra="forbid")
+    
     type: Literal["svdentropicreduction"] = "svdentropicreduction"
 
     alpha: float
@@ -165,7 +165,7 @@ class SVDEntropicReductionFactory(Factory[nn.Module]):
 
 
 class GELUFactory(Factory[nn.Module]):
-    model_config = ConfigDict(extra="forbid")
+    
     type: Literal["gelu"] = "gelu"
 
     def build(self, ctx: Context) -> nn.Module:
@@ -173,7 +173,7 @@ class GELUFactory(Factory[nn.Module]):
 
 
 class RELUFactory(Factory[nn.Module]):
-    model_config = ConfigDict(extra="forbid")
+    
     type: Literal["relu"] = "relu"
 
     def build(self, ctx: Context) -> nn.Module:

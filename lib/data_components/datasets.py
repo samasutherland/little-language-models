@@ -78,7 +78,7 @@ class SimpleStoriesBPEDataset(Dataset):
 
 
 class SimpleStoriesBPEFactory(Factory[SimpleStoriesBPEDataset]):
-    model_config = ConfigDict(extra="forbid")
+    
     type: Literal["simplestoriesbpe"] = "simplestoriesbpe"
 
     tokenizer_factory: TokenizerFactory

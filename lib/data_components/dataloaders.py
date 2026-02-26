@@ -15,7 +15,7 @@ def pad_collate_fn(batch, pad_id):
     return {"input_ids": x, "attention_mask": m}
 
 class TorchDataLoaderFactory(Factory[DataLoader]):
-    model_config = ConfigDict(extra="forbid")
+    
     type: Literal["torchdataloader"] = "torchdataloader"
 
     dataset_factory: DatasetFactory

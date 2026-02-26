@@ -88,7 +88,7 @@ class MultiHeadSelfAttention(nn.Module):
                                                                   self.v_dim * self.n_heads))  # batch, seq, embedding_dim
 
 class MultiHeadSelfAttentionFactory(Factory[nn.Module]):
-    model_config = ConfigDict(extra="forbid")
+    
     type: Literal["multiheadselfattention"] = "multiheadselfattention"
 
     positional_encoding_factory: PositionalEncodingFactory
@@ -153,7 +153,7 @@ class LatentMultiHeadSelfAttention(MultiHeadSelfAttention):
                     self.qk_dim + v_dim) * n_heads))  # Grouped matrix for the heads and k and v
 
 class LatentMultiHeadSelfAttentionFactory(Factory[nn.Module]):
-    model_config = ConfigDict(extra="forbid")
+    
     type: Literal["latentmultiheadselfattention"] = "latentmultiheadselfattention"
 
     positional_encoding_factory: PositionalEncodingFactory

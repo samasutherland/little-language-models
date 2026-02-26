@@ -9,7 +9,7 @@ from lib import Context, Factory
 # ---------- Layer Definitions ---------- #
 
 class StandardEmbeddingLayerFactory(Factory[nn.Module]):
-    model_config = ConfigDict(extra="forbid")
+    
     type: Literal["standardembeddinglayer"] = "standardembeddinglayer"
 
     def build(self, ctx: Context) -> nn.Module:

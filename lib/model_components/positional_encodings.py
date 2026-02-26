@@ -35,7 +35,7 @@ class RoPE(nn.Module):
 
 
 class RoPEFactory(Factory[nn.Module]):
-    model_config = ConfigDict(extra="forbid")
+    
     type: Literal["rope"] = "rope"
 
     base: int

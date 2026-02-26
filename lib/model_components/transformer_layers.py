@@ -48,7 +48,7 @@ class StandardTransformerLayer(nn.Module):
         return x
 
 class StandardTransformerLayerFactory(Factory[nn.Module]):
-    model_config = ConfigDict(extra="forbid")
+    
     type: Literal["standardtransformerlayer"] = "standardtransformerlayer"
 
     activation_factory: ActivationFactory
