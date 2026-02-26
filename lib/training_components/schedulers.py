@@ -4,7 +4,6 @@ from pydantic import Field
 from lib import Context, Factory
 
 import torch
-from torch import nn
 from torch.optim.lr_scheduler import LRScheduler
 
 from lib.training_components import OptimizerFactory
