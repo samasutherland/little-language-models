@@ -12,7 +12,7 @@ def build_component_from_config(
     factory: F,
     config_path: str | Path,
     ctx: Context,
-) -> T:
+) -> tuple[T, Dict[str, Any]]:
     """
     Build a components from the component factory and a YAML config file.
     ctx: context required by factory class.
@@ -20,9 +20,9 @@ def build_component_from_config(
     config_path = Path(config_path)
     with config_path.open("r") as f:
         raw = yaml.safe_load(f)
-    model_params: Dict[str, Any] = dict(raw)
-    builder = factory.model_validate(model_params)
-    return builder.build(ctx)
+    config: Dict[str, Any] = dict(raw)
+    builder = factory.model_validate(config)
+    return builder.build(ctx), config
 
 
 __all__ = ["build_component_from_config"]

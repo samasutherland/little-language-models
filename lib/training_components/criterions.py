@@ -5,6 +5,7 @@ from lib import Context, Factory
 
 from torch import nn
 
+
 class CrossEntropyLossFactory(Factory[nn.Module]):
     type: Literal["crossentropy"] = "crossentropy"
 
@@ -13,8 +14,7 @@ class CrossEntropyLossFactory(Factory[nn.Module]):
         return nn.CrossEntropyLoss(ignore_index=pad_id)
 
 
-LossFactory = Annotated[
+CriterionFactory = Annotated[
     Union[CrossEntropyLossFactory],
     Field(discriminator="type"),
 ]
-

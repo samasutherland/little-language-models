@@ -1,0 +1,136 @@
+from typing import Literal, Annotated, Union, Any
+from pydantic import Field
+
+from lib import Context, Factory
+
+
+import torch
+from torch import nn
+from torch.optim import Optimizer
+from torch.optim.lr_scheduler import LRScheduler
+
+from lib.training_components import OptimizerFactory, CriterionFactory, SchedulerFactory
+
+class EvaluationStep:
+    def __init__(self,
+                 model: nn.Module,
+                 criterion: nn.Module,
+                 autocast_ctx: torch.autocast,
+                 device: torch.device):
+                 # logger:):
+        self.model = model
+        self.criterion = criterion
+        self.autocast_ctx = autocast_ctx
+        self.device = device
+
+    def step(self, x: torch.Tensor) -> torch.Tensor:
+        self.model.train()
+        x = x.to(self.device, non_blocking=True)
+        with self.autocast_ctx:
+            logits = self.model(x[:, :-1])
+            loss = self.criterion(logits.reshape(-1, logits.size(-1)), x[:, 1:].reshape(-1))
+        loss.backward()
+        return loss
+
+class EvaluationStepFactory(Factory[EvaluationStep]):
+    type: Literal["evaluationstep"] = "evaluationstep"
+    
+    criterion_factory: CriterionFactory
+
+    def build(self, ctx: Context) -> EvaluationStep:
+        criterion = self.criterion_factory.build(ctx)
+
+        model = ctx.require("model")
+        autocast_ctx = ctx.require("autocast_ctx")
+        device = ctx.require("device")
+
+        return EvaluationStep(model,
+                              criterion,
+                              autocast_ctx,
+                              device)
+
+
+class GradientStep:
+    def __init__(self,
+                 model: nn.Module,
+                 optimizer: Optimizer,
+                 scheduler: LRScheduler,
+                 grad_clipping: float
+                 ):
+        self.model = model
+        self.optimizer = optimizer
+        self.scheduler = scheduler
+        self.grad_clipping = grad_clipping
+        self.step_scheduler = True
+
+    def step(self):
+        for param in self.model.parameters():
+            if param.grad is not None:
+                param.grad = torch.nan_to_num(param.grad, nan=0.0)
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clipping)
+            self.optimizer.step()
+            if self.step_scheduler:
+                try:
+                    self.scheduler.step()
+                except ValueError:
+                    print("Scheduler stopped stepping.")
+                    self.step_scheduler = False
+            self.optimizer.zero_grad()
+
+
+class GradientStepFactory(Factory[GradientStep]):
+    type: Literal["gradientstep"] = "gradientstep"
+
+    optimizer_factory: OptimizerFactory
+    scheduler_factory: SchedulerFactory
+
+    grad_clipping: float
+
+    def build(self, ctx: Context) -> GradientStep:
+        model = ctx.require("model")
+        optimizer = self.optimizer_factory.build(ctx)
+        scheduler = self.scheduler_factory.build(ctx)
+
+        return GradientStep(model,
+                            optimizer,
+                            scheduler,
+                            grad_clipping=self.grad_clipping)
+
+
+class ValidationStep:
+    def __init__(self,
+                 model: nn.Module,
+                 criterion: nn.Module,
+                 device: torch.device):
+        self.model = model
+        self.criterion = criterion
+        self.device = device
+
+    def step(self, x: torch.Tensor) -> float:
+        self.model.eval()
+        x = x.to(self.device, non_blocking=True)
+        with torch.no_grad():
+            logits = self.model(x[:, :-1])
+            val_loss = self.criterion(logits.reshape(-1, logits.size(-1)), x[:, 1:].reshape(-1))
+            val_loss = val_loss.item()
+        return val_loss
+
+class ValidationStepFactory(Factory[ValidationStep]):
+    type: Literal["validationstep"] = "validationstep"
+    criterion_factory: CriterionFactory
+
+    def build(self, ctx: Context) -> ValidationStep:
+        model = ctx.require("model")
+        device = ctx.require("device")
+
+        criterion = self.criterion_factory.build(ctx)
+
+        return ValidationStep(model,
+                              criterion,
+                              device)
+
+
+StepFactory = Annotated[
+    Union[EvaluationStepFactory, GradientStepFactory, ValidationStepFactory],
+    Field(discriminator="type"),
+]

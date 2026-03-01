@@ -1,5 +1,5 @@
 from .optimizers import OptimizerFactory
 from .schedulers import SchedulerFactory
-from .losses import LossFactory
+from .criterions import CriterionFactory
 
-__all__ = ["OptimizerFactory", "SchedulerFactory", "LossFactory"]
+__all__ = ["OptimizerFactory", "SchedulerFactory", "CriterionFactory"]
