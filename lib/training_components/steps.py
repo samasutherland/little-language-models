@@ -78,6 +78,9 @@ class GradientStep:
                     self.step_scheduler = False
             self.optimizer.zero_grad()
 
+    @property
+    def lr(self):
+        return self.scheduler.get_last_lr()[0]
 
 class GradientStepFactory(Factory[GradientStep]):
     type: Literal["gradientstep"] = "gradientstep"
@@ -118,7 +121,7 @@ class ValidationStep:
             data_iter = iter(self.data_loader)
             for i in range(self.num_batches):
                 val_batch = next(data_iter)
-                x = val_batch["input_ids"].to(self.device, non_blocking=True)
+                x = val_batch.to(self.device, non_blocking=True)
                 logits = self.model(x[:, :-1])
                 val_loss = self.criterion(logits.reshape(-1, logits.size(-1)), x[:, 1:].reshape(-1))
                 val_loss = val_loss.item()

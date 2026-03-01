@@ -11,8 +11,7 @@ from lib.data_components.datasets import DatasetFactory
 
 def pad_collate_fn(batch, pad_id):
     x = torch.nn.utils.rnn.pad_sequence(batch, batch_first=True, padding_value=pad_id)
-    m = (x != pad_id).long()
-    return {"input_ids": x, "attention_mask": m}
+    return x
 
 class TorchDataLoaderFactory(Factory[DataLoader]):
     

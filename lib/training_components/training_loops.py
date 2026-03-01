@@ -86,8 +86,7 @@ class TrainingLoop:
         for i in range(self.descent_steps):
             batch_loss = 0.0
             for j in range(self.accumulation_steps):
-                batch = next(self.dataloader)
-                x = batch["input_ids"]
+                x = next(self.dataloader)
                 self.token_count += x[:, 1:].numel()
                 loss = self.evaluation_step.step(x)
 
