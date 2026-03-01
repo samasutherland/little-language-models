@@ -1,0 +1,150 @@
+import warnings
+from typing import Literal, Annotated, Union, Any
+from pydantic import Field
+from torch.utils.data import DataLoader
+
+from lib import Context, Factory
+
+
+import torch
+from torch import nn
+from torch.utils.data import DataLoader
+from torch.optim import Optimizer
+from torch.optim.lr_scheduler import LRScheduler
+
+from pathlib import Path
+import os
+
+from aim import Run
+
+from lib.training_components import OptimizerFactory
+from lib.training_components.steps import EvaluationStep, GradientStep, ValidationStep, StepFactory
+from lib.training_components.loggers import LoggerFactory, Checkpointer, AimLogger
+
+
+class Buffer: # TODO: subclass abstract base class, or use existing first in first out structure
+    def __init__(self, length):
+        self.length = length
+        self.buffer = torch.zeros(length)
+
+    def push(self, x):
+        torch.cat((self.buffer[1:], torch.tensor([x])))
+
+    def reset(self):
+        self.buffer = torch.zeros(self.length)
+
+
+class TrainingLoop:
+    def __init__(self,
+                 dataloader: DataLoader,
+
+                 descent_steps: int,
+                 accumulation_steps: int,
+                 val_frequency: int,
+
+                 evaluation_step: EvaluationStep,
+                 gradient_step: GradientStep,
+                 validation_step: ValidationStep,
+
+
+                 aim_logger: AimLogger,
+                 train_checkpointer: Checkpointer,
+                 val_checkpointer: Checkpointer,
+
+                 ):
+        self.loss_buffer = Buffer(100)
+        self.dataloader = iter(dataloader)
+
+        self.descent_steps = descent_steps
+        self.accumulation_steps = accumulation_steps
+
+        self.val_frequency = val_frequency
+
+        self.evaluation_step = evaluation_step
+        self.gradient_step = gradient_step
+        self.validation_step = validation_step
+
+        self.token_count = 0
+        self.aim_logger = aim_logger
+        self.train_checkpointer = train_checkpointer
+        self.val_checkpointer = val_checkpointer
+
+
+
+    def run(self,):
+        for i in range(self.descent_steps):
+            batch_loss = 0.0
+            for j in range(self.accumulation_steps):
+                x = next(self.dataloader)
+                self.token_count += x[:, 1:].numel()
+                loss = self.evaluation_step.step(x)
+
+                if loss.item() > 10 * torch.median(self.loss_buffer.buffer):
+                    warnings.warn("loss huge. skipping...")
+                    continue
+
+                loss_buffer = loss_buffer.push(loss.item())
+                loss = loss / self.accumulation_steps
+
+                batch_loss += loss.item()
+
+                loss.backward()
+
+            train_metrics = {"loss": batch_loss}
+            if torch.isfinite(batch_loss):
+                train_metrics["perplexity"] = torch.exp(torch.tensor(batch_loss).clamp(max=88.72)).item()
+            train_metrics["lr"] = self.gradient_step.lr
+
+            self.aim_logger.track_train_metrics(train_metrics, i)
+            self.train_checkpointer.compare_loss_and_checkpoint(i, batch_loss)
+
+            self.gradient_step.step()
+
+            if i % self.val_frequency == 0:
+                val_loss = self.validation_step.step()
+                self.aim_logger.track_val_metrics({"loss": val_loss})
+                self.val_checkpointer.compare_loss_and_checkpoint(i, val_loss)
+
+        return self.token_count, loss, val_loss, self.train_checkpointer.best_loss, self.val_checkpointer.best_loss
+
+class TrainingLoopFactory(Factory[TrainingLoop]):
+    type: Literal["trainingloop"] = "trainingloop"
+
+    evaluation_step_factory: StepFactory
+    gradient_step_factory: StepFactory
+    validation_step_factory: StepFactory
+
+    aim_logger_factory: LoggerFactory
+    train_checkpointer_factory: LoggerFactory
+    val_checkpointer_factory: LoggerFactory
+
+    descent_steps: int
+    accumulation_steps: int
+    val_frequency: int
+
+    def build(self, ctx: Context) -> TrainingLoop:
+        dataloader = ctx.require("dataloader")
+
+        evaluation_step = self.evaluation_step_factory.build(ctx)
+        gradient_step = self.gradient_step_factory.build(ctx)
+        validation_step = self.validation_step_factory.build(ctx)
+
+        aim_logger = self.aim_logger_factory.build(ctx)
+        train_checkpointer = self.train_checkpointer_factory.build(ctx)
+        val_checkpointer = self.val_checkpointer_factory.build(ctx)
+
+        return TrainingLoop(dataloader,
+                            descent_steps=self.descent_steps,
+                            accumulation_steps=self.accumulation_steps,
+                            val_frequency=self.val_frequency,
+                            evaluation_step=evaluation_step,
+                            gradient_step=gradient_step,
+                            validation_step=validation_step,
+                            aim_logger=aim_logger,
+                            train_checkpointer=train_checkpointer,
+                            val_checkpointer=val_checkpointer,)
+
+LoopFactory = Annotated[
+    Union[TrainingLoopFactory],
+    Field(discriminator="type"),
+]

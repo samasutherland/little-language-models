@@ -12,7 +12,7 @@ from lib.training_components import OptimizerFactory
 class OneCycleLRFactory(Factory[LRScheduler]):
     type: Literal["onecyclelr"] = "onecyclelr"
 
-    optimizer_factory = OptimizerFactory
+    optimizer_factory: OptimizerFactory
 
     lr: float
     initial_div_factor: float # factor to divide lr by to get initial lr

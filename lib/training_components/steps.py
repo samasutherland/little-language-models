@@ -135,7 +135,7 @@ class ValidationStepFactory(Factory[ValidationStep]):
     type: Literal["validationstep"] = "validationstep"
 
     criterion_factory: CriterionFactory
-    data_loader: DataLoaderFactory
+    data_loader_factory: DataLoaderFactory
 
     validation_batches: int
 
@@ -144,7 +144,7 @@ class ValidationStepFactory(Factory[ValidationStep]):
         device = ctx.require("device")
 
         criterion = self.criterion_factory.build(ctx)
-        data_loader = self.data_loader.build(ctx)
+        data_loader = self.data_loader_factory.build(ctx)
 
         return ValidationStep(model,
                               criterion,
