@@ -11,6 +11,7 @@ from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LRScheduler
 
 from lib.training_components import OptimizerFactory, CriterionFactory, SchedulerFactory
+from lib.data_components import DataLoaderFactory
 
 class EvaluationStep:
     def __init__(self,
@@ -102,38 +103,52 @@ class ValidationStep:
                  model: nn.Module,
                  criterion: nn.Module,
                  device: torch.device,
-                 dataloader: DataLoader,):
+                 data_loader: DataLoader,
+                 num_batches: int):
         self.model = model
         self.criterion = criterion
         self.device = device
-        self.dataloader = dataloader
+        self.data_loader = data_loader
+        self.num_batches = num_batches
 
-    def step(self, x: torch.Tensor) -> float:
+    def step(self) -> float:
         self.model.eval()
-        x = x.to(self.device, non_blocking=True)
         with torch.no_grad():
             val_losses = []
+            data_iter = iter(self.data_loader)
+            for i in range(self.num_batches):
+                val_batch = next(data_iter)
+                x = val_batch["input_ids"].to(self.device, non_blocking=True)
+                logits = self.model(x[:, :-1])
+                val_loss = self.criterion(logits.reshape(-1, logits.size(-1)), x[:, 1:].reshape(-1))
+                val_loss = val_loss.item()
+                val_losses.append(val_loss.item())
 
+            mean_val_loss = torch.tensor(val_losses).mean().item()
 
-
-            logits = self.model(x[:, :-1])
-            val_loss = self.criterion(logits.reshape(-1, logits.size(-1)), x[:, 1:].reshape(-1))
-            val_loss = val_loss.item()
-        return val_loss
+        return mean_val_loss
 
 class ValidationStepFactory(Factory[ValidationStep]):
     type: Literal["validationstep"] = "validationstep"
+
     criterion_factory: CriterionFactory
+    data_loader: DataLoaderFactory
+
+    validation_batches: int
 
     def build(self, ctx: Context) -> ValidationStep:
         model = ctx.require("model")
         device = ctx.require("device")
 
         criterion = self.criterion_factory.build(ctx)
+        data_loader = self.data_loader.build(ctx)
 
         return ValidationStep(model,
                               criterion,
-                              device)
+                              device,
+                              data_loader=data_loader,
+                              num_batches=self.validation_batches,
+                              )
 
 
 StepFactory = Annotated[
