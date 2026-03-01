@@ -1,5 +1,6 @@
 from typing import Literal, Annotated, Union, Any
 from pydantic import Field
+from torch.utils.data import DataLoader
 
 from lib import Context, Factory
 
@@ -29,7 +30,6 @@ class EvaluationStep:
         with self.autocast_ctx:
             logits = self.model(x[:, :-1])
             loss = self.criterion(logits.reshape(-1, logits.size(-1)), x[:, 1:].reshape(-1))
-        loss.backward()
         return loss
 
 class EvaluationStepFactory(Factory[EvaluationStep]):
@@ -101,15 +101,21 @@ class ValidationStep:
     def __init__(self,
                  model: nn.Module,
                  criterion: nn.Module,
-                 device: torch.device):
+                 device: torch.device,
+                 dataloader: DataLoader,):
         self.model = model
         self.criterion = criterion
         self.device = device
+        self.dataloader = dataloader
 
     def step(self, x: torch.Tensor) -> float:
         self.model.eval()
         x = x.to(self.device, non_blocking=True)
         with torch.no_grad():
+            val_losses = []
+
+
+
             logits = self.model(x[:, :-1])
             val_loss = self.criterion(logits.reshape(-1, logits.size(-1)), x[:, 1:].reshape(-1))
             val_loss = val_loss.item()
