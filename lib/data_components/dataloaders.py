@@ -19,7 +19,6 @@ class TorchDataLoaderFactory(Factory[DataLoader]):
 
     dataset_factory: DatasetFactory
 
-    batch_size: int
     shuffle: bool
     prefetch_factor: int
 
@@ -31,9 +30,10 @@ class TorchDataLoaderFactory(Factory[DataLoader]):
         num_workers = ctx.require("dataloader_workers")
         persistent_workers = ctx.require("persistent_workers")
         pin_memory = ctx.require("pin_memory")
+        batch_size = ctx.require("batch_size")
 
         return DataLoader(dataset,
-                          batch_size=self.batch_size,
+                          batch_size=batch_size,
                           shuffle=self.shuffle,
                           prefetch_factor=self.prefetch_factor,
                           collate_fn=collate,

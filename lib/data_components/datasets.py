@@ -4,6 +4,7 @@ import warnings
 from pydantic import ConfigDict, Field
 
 from datasets import load_dataset
+from datasets import Dataset as HFDataset
 
 from sentencepiece import SentencePieceProcessor
 from torch.utils.data import Dataset
@@ -30,7 +31,7 @@ class _TokWrap:
         return self._enc.Decode(ids)
 
 class SimpleStoriesBPEDataset(Dataset):
-    def __init__(self, hf_split, tokenizer: SentencePieceProcessor, max_length=None):
+    def __init__(self, hf_split: HFDataset, tokenizer: SentencePieceProcessor, max_length=None):
 
         self.tok = _TokWrap(tokenizer)
         self.ds = hf_split
@@ -56,13 +57,13 @@ class SimpleStoriesBPEDataset(Dataset):
     def vocab_size(self):
         return self.tok.vocab_size
 
-    def __getstate__(self):
-        state = self.__dict__.copy()
-        state["tok"] = None
-        return state
-
-    def __setstate__(self, state):
-        self.__dict__.update(state)
+    # def __getstate__(self):
+    #     state = self.__dict__.copy()
+    #     state["tok"] = None
+    #     return state
+    # 
+    # def __setstate__(self, state):
+    #     self.__dict__.update(state)
 
     def __len__(self):
         return len(self.ds)

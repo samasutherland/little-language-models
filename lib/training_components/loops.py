@@ -1,8 +1,9 @@
 import warnings
-from typing import Literal, Annotated, Union, Any
+from typing import Literal, Annotated, Union, Any, Dict
 from pydantic import Field
 from torch.utils.data import DataLoader
 
+from tqdm import tqdm
 from lib import Context, Factory
 
 
@@ -16,6 +17,7 @@ from pathlib import Path
 import os
 
 from aim import Run
+import yaml
 
 from lib.training_components import OptimizerFactory
 from lib.training_components.steps import EvaluationStep, GradientStep, ValidationStep, StepFactory
@@ -72,7 +74,7 @@ class TrainingLoop:
 
 
     def run(self,):
-        for i in range(self.descent_steps):
+        for i in tqdm(range(self.descent_steps)):
             batch_loss = 0.0
             for j in range(self.accumulation_steps):
                 x = next(self.dataloader)
@@ -91,7 +93,7 @@ class TrainingLoop:
                 loss.backward()
 
             train_metrics = {"loss": batch_loss}
-            if torch.isfinite(batch_loss):
+            if torch.isfinite(torch.tensor(batch_loss)):
                 train_metrics["perplexity"] = torch.exp(torch.tensor(batch_loss).clamp(max=88.72)).item()
             train_metrics["lr"] = self.gradient_step.lr
 
@@ -102,7 +104,7 @@ class TrainingLoop:
 
             if i % self.val_frequency == 0:
                 val_loss = self.validation_step.step()
-                self.aim_logger.track_val_metrics({"loss": val_loss})
+                self.aim_logger.track_val_metrics({"loss": val_loss}, i)
                 self.val_checkpointer.compare_loss_and_checkpoint(i, val_loss)
 
         return self.token_count, loss, val_loss, self.train_checkpointer.best_loss, self.val_checkpointer.best_loss
@@ -121,17 +123,27 @@ class TrainingLoopFactory(Factory[TrainingLoop]):
     descent_steps: int
     accumulation_steps: int
     val_frequency: int
+    
+    context_path: str|Path
 
     def build(self, ctx: Context) -> TrainingLoop:
-        dataloader = ctx.require("dataloader")
+        context_path = Path(self.context_path)
+        with context_path.open("r") as f:
+            raw = yaml.safe_load(f)
+        run_context: Dict[str, Any] = dict(raw)
+        ctx = ctx.fork(**run_context)
+        
+        dataloader = ctx.require("train_dataloader")
 
         evaluation_step = self.evaluation_step_factory.build(ctx)
         gradient_step = self.gradient_step_factory.build(ctx)
         validation_step = self.validation_step_factory.build(ctx)
 
         aim_logger = self.aim_logger_factory.build(ctx)
-        train_checkpointer = self.train_checkpointer_factory.build(ctx)
-        val_checkpointer = self.val_checkpointer_factory.build(ctx)
+        
+        ctx_fork = ctx.fork(optimizer=gradient_step.optimizer)
+        train_checkpointer = self.train_checkpointer_factory.build(ctx_fork)
+        val_checkpointer = self.val_checkpointer_factory.build(ctx_fork)
 
         return TrainingLoop(dataloader,
                             descent_steps=self.descent_steps,

@@ -14,10 +14,10 @@ class StandardEmbeddingLayerFactory(Factory[nn.Module]):
 
     def build(self, ctx: Context) -> nn.Module:
         vocab_size = ctx.require("vocab_size")
-        padding_idx = ctx.require("padding_idx")
+        pad_id = ctx.require("pad_id")
         embedding_dim = ctx.require("embedding_dim")
 
-        return nn.Embedding(vocab_size, embedding_dim, padding_idx=padding_idx)
+        return nn.Embedding(vocab_size, embedding_dim, padding_idx=pad_id)
 
 # ---------- Layer Registration ---------- #
 

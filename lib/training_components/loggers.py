@@ -25,25 +25,31 @@ class AimLogger(Run):
         for key, value in metrics.items():
             self.track(value, name=key, step=step, context=context)
 
-    track_train_metrics = functools.partial(track_metrics, context={"subset": "train"})
-    track_val_metrics = functools.partial(track_metrics, context={"subset": "val"})
+    def track_train_metrics(self, metrics, step):
+        self.track_metrics(metrics, step, {"subset": "train"})
+
+    def track_val_metrics(self, metrics, step):
+        self.track_metrics(metrics, step, {"subset": "val"})
 
 class AimLoggerFactory(Factory[Run]):
     type: Literal["aimloggerfactory"] = "aimloggerfactory"
 
-    experiment_name: str
-
     def build(self, ctx: Context) -> AimLogger:
         configs = ctx.require("config_dicts")
-        return AimLogger(experiment_name=self.experiment_name,
+        experiment_name = ctx.require("experiment_name")
+        
+        return AimLogger(experiment_name=experiment_name,
                          configs=configs)
 
 class Checkpointer:
-    def __init__(self, model: nn.Module, optimizer: torch.optim.Optimizer, save_dir: str):
-        self.save_dir = save_dir
+    def __init__(self, model: nn.Module, optimizer: torch.optim.Optimizer, experiment_name: str|Path, folder_name: str):
+        self.save_dir = os.path.join(experiment_name, folder_name)
         self.best_loss = float("inf")
         self.model = model
         self.optimizer = optimizer
+        
+        os.makedirs(self.save_dir, exist_ok=True)
+       
 
     def compare_loss(self, loss):
         if loss < self.best_loss:
@@ -53,7 +59,7 @@ class Checkpointer:
 
     def save_checkpoint(self, step, loss):
         torch.save({"model": self.model.state_dict(), "optimizer": self.optimizer.state_dict(),
-                    "step": step, "loss": loss}, os.path.join(Path(self.save_dir), "ckpt_best_val.pt"))
+                    "step": step, "loss": loss}, os.path.join(self.save_dir, "ckpt_best_val.pt"))
 
     def compare_loss_and_checkpoint(self, step, loss):
         if self.compare_loss(loss):
@@ -62,14 +68,16 @@ class Checkpointer:
 class CheckpointerFactory(Factory[Checkpointer]):
     type: Literal["checkpointerfactory"] = "checkpointerfactory"
 
-    save_dir: str|Path
+    folder_name: str|Path
 
     def build(self, ctx: Context) -> Checkpointer:
         model = ctx.require("model")
         optimizer = ctx.require("optimizer")
+        experiment_name = ctx.require("experiment_name")
         return Checkpointer(model,
                             optimizer,
-                            save_dir=self.save_dir
+                            experiment_name,
+                            folder_name=self.folder_name
                             )
 
 LoggerFactory = Annotated[

@@ -56,19 +56,19 @@ class GradientStep:
                  model: nn.Module,
                  optimizer: Optimizer,
                  scheduler: LRScheduler,
-                 grad_clipping: float
+                 grad_clip_norm: float
                  ):
         self.model = model
         self.optimizer = optimizer
         self.scheduler = scheduler
-        self.grad_clipping = grad_clipping
+        self.grad_clip_norm = grad_clip_norm
         self.step_scheduler = True
 
     def step(self):
         for param in self.model.parameters():
             if param.grad is not None:
                 param.grad = torch.nan_to_num(param.grad, nan=0.0)
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clipping)
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip_norm)
             self.optimizer.step()
             if self.step_scheduler:
                 try:
@@ -85,20 +85,20 @@ class GradientStep:
 class GradientStepFactory(Factory[GradientStep]):
     type: Literal["gradientstep"] = "gradientstep"
 
-    optimizer_factory: OptimizerFactory
     scheduler_factory: SchedulerFactory
 
-    grad_clipping: float
+    grad_clip_norm: float
 
     def build(self, ctx: Context) -> GradientStep:
         model = ctx.require("model")
-        optimizer = self.optimizer_factory.build(ctx)
+
         scheduler = self.scheduler_factory.build(ctx)
+        optimizer = scheduler.optimizer
 
         return GradientStep(model,
                             optimizer,
                             scheduler,
-                            grad_clipping=self.grad_clipping)
+                            grad_clip_norm=self.grad_clip_norm)
 
 
 class ValidationStep:
@@ -124,7 +124,6 @@ class ValidationStep:
                 x = val_batch.to(self.device, non_blocking=True)
                 logits = self.model(x[:, :-1])
                 val_loss = self.criterion(logits.reshape(-1, logits.size(-1)), x[:, 1:].reshape(-1))
-                val_loss = val_loss.item()
                 val_losses.append(val_loss.item())
 
             mean_val_loss = torch.tensor(val_losses).mean().item()
@@ -135,16 +134,15 @@ class ValidationStepFactory(Factory[ValidationStep]):
     type: Literal["validationstep"] = "validationstep"
 
     criterion_factory: CriterionFactory
-    data_loader_factory: DataLoaderFactory
 
     validation_batches: int
 
     def build(self, ctx: Context) -> ValidationStep:
         model = ctx.require("model")
         device = ctx.require("device")
+        data_loader = ctx.require("val_dataloader")
 
         criterion = self.criterion_factory.build(ctx)
-        data_loader = self.data_loader_factory.build(ctx)
 
         return ValidationStep(model,
                               criterion,
