@@ -2,7 +2,7 @@
 aim init
 DEST="$(pwd)"
 
-for d in ./aim_repos/*; do
+for d in ./aim_repos_chinchilla_sweep/*; do
   td=$(mktemp -d)
   if [ -d "$d" ] && compgen -G "$d"/*.tar.gz > /dev/null; then
     tar -C "$td" -xzf "$(ls -1 "$d"/*.tar.gz | head -n1)"

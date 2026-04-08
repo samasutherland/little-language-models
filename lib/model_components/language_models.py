@@ -40,13 +40,14 @@ class TransformerFactory(Factory[nn.Module]):
     embedding_layer_factory: EmbeddingLayerFactory
 
     embedding_dim: int
-    num_layers: int
 
     def build(self, ctx: Context) -> nn.Module:
+        num_layers = ctx.require("num_layers")
+        
         ctx_fork = ctx.fork(embedding_dim=self.embedding_dim)
         embedding = self.embedding_layer_factory.build(ctx_fork)
         transformer_stack = nn.Sequential(
-            *[self.transformer_layer_factory.build(ctx_fork) for _ in range(self.num_layers)]
+            *[self.transformer_layer_factory.build(ctx_fork) for _ in range(num_layers)]
         )
         final_norm = self.final_norm_factory.build(ctx_fork)
         

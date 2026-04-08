@@ -1,6 +1,6 @@
 import warnings
 from typing import Literal, Annotated, Union, Any, Dict
-from pydantic import Field
+from pydantic import Field, ConfigDict
 from torch.utils.data import DataLoader
 
 from tqdm import tqdm
@@ -123,15 +123,8 @@ class TrainingLoopFactory(Factory[TrainingLoop]):
     descent_steps: int
     accumulation_steps: int
     val_frequency: int
-    
-    context_path: str|Path
 
     def build(self, ctx: Context) -> TrainingLoop:
-        context_path = Path(self.context_path)
-        with context_path.open("r") as f:
-            raw = yaml.safe_load(f)
-        run_context: Dict[str, Any] = dict(raw)
-        ctx = ctx.fork(**run_context)
         
         dataloader = ctx.require("train_dataloader")
 
@@ -155,6 +148,26 @@ class TrainingLoopFactory(Factory[TrainingLoop]):
                             aim_logger=aim_logger,
                             train_checkpointer=train_checkpointer,
                             val_checkpointer=val_checkpointer,)
+
+
+class BenchmarkingLoopFactory(Factory[TrainingLoop]):
+    model_config = ConfigDict(extra="ignore")
+    type: Literal["benchmarkingloop"] = "benchmarkingloop"
+
+    evaluation_step_factory: StepFactory
+    gradient_step_factory: StepFactory
+    validation_step_factory: StepFactory
+
+    # aim_logger_factory: LoggerFactory
+    # train_checkpointer_factory: LoggerFactory
+    # val_checkpointer_factory: LoggerFactory
+
+    descent_steps: int
+    accumulation_steps: int
+    val_frequency: int
+
+    context_path: str | Path
+
 
 LoopFactory = Annotated[
     Union[TrainingLoopFactory],

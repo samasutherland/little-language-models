@@ -10,13 +10,13 @@ from sympy import divisors
 import gc
 from torch import nn
 
-from lib.data_config import DataConfig, build_dataset_and_loader
-from lib.training_config import (
-    TrainingConfig,
-    build_optimizer,
-    build_scheduler,
-    build_criterion,
-)
+def init_train_device():
+    device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
+    amp_ctx = torch.autocast(device_type=device, dtype=torch.bfloat16) if torch.amp.autocast_mode.is_autocast_available(
+        device) else nullcontext()
+    
+    return device, amp_ctx
+
 
 def generate_sample(model, dataset, device, prompt, n_words=15, max_new_tokens=60, temperature=1.0, top_k=50, top_p=0.9):
     model.eval()

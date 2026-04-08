@@ -24,5 +24,18 @@ def build_component_from_config(
     builder = factory.model_validate(config)
     return builder.build(ctx), config
 
+def build_component_from_dict(
+    factory: F,
+    config_dict: Dict[str, Any],
+    ctx: Context,
+) -> tuple[T, Dict[str, Any]]:
+    """
+    Build a components from the component factory and a config dict.
+    ctx: context required by factory class.
+    """
 
-__all__ = ["build_component_from_config"]
+    builder = factory.model_validate(config_dict)
+    return builder.build(ctx), config_dict
+
+
+__all__ = ["build_component_from_config", "build_component_from_dict"]
