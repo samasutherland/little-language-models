@@ -79,11 +79,11 @@ jobs:
               dataCenterIds: ["EU-CZ-1"],
               allowedCudaVersions: ["12.0","12.1","12.2","12.3","12.4","12.5","12.6","12.7","12.8","12.9"],
               name: $name,
-              env: [
-                {key: "GIT_SHA", value: $gitSha},
-                {key: "IMAGE_TAG", value: $imageName},
-                {key: "POD_NAME", value: $name}
-              ]
+              env: {
+                GIT_SHA: $gitSha,
+                IMAGE_TAG: $imageName,
+                POD_NAME: $name
+              }
             }')
 
           status=$(curl -sS -o resp.json -w "%{http_code}" \
