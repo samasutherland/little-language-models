@@ -7,4 +7,4 @@ dataset_factory:
 
   tokenizer_factory:
     type: sentencepiece
-    tokenizer_path: ../data/tokenizers/unigram_4K.model
+    tokenizer_path: data/tokenizers/unigram_4K.model

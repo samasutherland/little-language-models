@@ -109,7 +109,7 @@ class TrainingLoop:
                 self.aim_logger.track_val_metrics({"loss": val_loss}, i)
                 self.val_checkpointer.compare_loss_and_checkpoint(i, val_loss)
                 
-        total_descent_steps = i
+        total_descent_steps = i + 1
 
         return self.token_count, loss, val_loss, self.train_checkpointer.best_loss, self.val_checkpointer.best_loss, total_descent_steps
 

@@ -19,27 +19,27 @@ def init_train_device():
     return device, amp_ctx
 
 def init_datasets(context):
-    train_dataloader = build_component_from_config(DataLoaderFactory, "../configs/data.yaml",
+    train_dataloader = build_component_from_config(DataLoaderFactory, "configs/data.yaml",
                                                    context.fork(split="train"))
-    val_dataloader = build_component_from_config(DataLoaderFactory, "../configs/data.yaml", context.fork(split="test"))
+    val_dataloader = build_component_from_config(DataLoaderFactory, "configs/data.yaml", context.fork(split="test"))
     return train_dataloader, val_dataloader
 
 def init_datasets_and_models(context, shuffle=True):
     (train_dataloader, data_config), (val_dataloader, data_config) = init_datasets(context.fork(shuffle=shuffle))
     context.merge({"train_dataloader": train_dataloader, "val_dataloader": val_dataloader})
-    model, model_config = build_component_from_config(LanguageModelFactory, "../configs/model.yaml", context)
+    model, model_config = build_component_from_config(LanguageModelFactory, "configs/model.yaml", context)
     device = context.require("device")
     model = model.to(device)
     context.merge({"model": model})
     return context, {"data": data_config, "model": model_config}
 
 def init_runtime_contexts():
-    context_path = Path("../configs/context.yaml")
+    context_path = Path("configs/context.yaml")
     with context_path.open("r") as f:
         run_context_dict = yaml.safe_load(f)
     context = Context(**run_context_dict)
 
-    server_path = Path("../configs/server.yaml")
+    server_path = Path("configs/server.yaml")
     with server_path.open("r") as f:
         server_dict = yaml.safe_load(f)
     context.merge(Context(**server_dict))

@@ -7,8 +7,8 @@ if [ -n "${RUNPOD_SECRET_RCLONE_GDRIVE_CONF:-}" ]; then
   chmod 600 /secrets/rclone.conf
 fi
 
-exec > >(tee "/workspace/experiment/stdout.log")
-exec 2> >(tee "/workspace/experiment/stderr.log" >&2)
+exec > >(tee "/workspace/logs/stdout.log")
+exec 2> >(tee "/workspace/logs/stderr.log" >&2)
 
 echo "Pretraining..."
 python3 scripts/1-pretraining.py
@@ -40,9 +40,12 @@ PY
 aim_run_hash="$(cat "/workspace/data/${experiment_name}/checkpoints/aim_run_hash.txt")"
 base_remote="Gdrive:runpod-uploads/${experiment_name}/${aim_run_hash}"
 
+rclone --config /secrets/rclone.conf copy /workspace/logs/ "${base_remote}/logs/" --create-empty-src-dirs --retries 3
 rclone --config /secrets/rclone.conf copy /workspace/configs/ "${base_remote}/configs/" --create-empty-src-dirs --retries 3
 rclone --config /secrets/rclone.conf copy "/workspace/data/${experiment_name}/checkpoints/" "${base_remote}/checkpoints/" --create-empty-src-dirs --retries 3
 rclone --config /secrets/rclone.conf copy /workspace/aim_repo_${RUNPOD_POD_ID}.tar.gz "Gdrive:runpod-uploads/.aim/${RUNPOD_POD_ID}/" --retries 3
+rclone --config /secrets/rclone.conf copy /workspace/aim_repo_${RUNPOD_POD_ID}.tar.gz "Gdrive:runpod-uploads/.aim/${RUNPOD_POD_ID}/" --retries 3
+
 
 echo "Stopping pod $RUNPOD_POD_ID..."
 runpodctl remove pod "$RUNPOD_POD_ID"

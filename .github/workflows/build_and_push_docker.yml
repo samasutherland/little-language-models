@@ -69,7 +69,7 @@ jobs:
             --arg gitSha "${{ github.sha }}" \
             '{
               templateId: $templateId,
-              cloudType: "COMMUNITY",
+              cloudType: "SECURE",
               gpuCount: 1,
               gpuTypeIds: ["NVIDIA GeForce RTX 4090"],
               imageName: $imageName,

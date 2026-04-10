@@ -69,15 +69,15 @@ class GradientStep:
         for param in self.model.parameters():
             if param.grad is not None:
                 param.grad = torch.nan_to_num(param.grad, nan=0.0)
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip_norm)
-            self.optimizer.step()
-            if self.step_scheduler:
-                try:
-                    self.scheduler.step()
-                except ValueError:
-                    print("Scheduler stopped stepping.")
-                    self.step_scheduler = False
-            self.optimizer.zero_grad()
+        torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip_norm)
+        self.optimizer.step()
+        if self.step_scheduler:
+            try:
+                self.scheduler.step()
+            except ValueError:
+                print("Scheduler stopped stepping.")
+                self.step_scheduler = False
+        self.optimizer.zero_grad()
 
     @property
     def lr(self):

@@ -18,13 +18,14 @@ from contextlib import nullcontext
 from pathlib import Path
 import yaml
 import time
+torch.manual_seed(42)
 
 def test_memory_fits(context: Context):
     context = context.fork(descent_steps=3)
     try: 
         context, _ = init_datasets_and_models(context)
         evaluation_loop, evaluation_loop_config = build_component_from_config(BenchmarkingLoopFactory,
-                                                                              "../configs/training.yaml", context)
+                                                                              "configs/training.yaml", context)
         start = time.perf_counter()
         token_count, *_ = evaluation_loop.run()
         end = time.perf_counter()
@@ -68,8 +69,8 @@ def find_batch_size(context):
 def test_learning_rate(context, lr):
     context = context.fork(learning_rate=lr, descent_steps=max(context.descent_steps//context.training_time, 1))
     evaluation_loop, evaluation_loop_config = build_component_from_config(BenchmarkingLoopFactory,
-                                                                          "../configs/training.yaml", context.fork(accumulation_steps=max(context.accumulated_batch_size//context.batch_size, 1)))
-    token_count, loss, val_loss, best_loss, best_val_loss = evaluation_loop.run()
+                                                                          "configs/training.yaml", context.fork(accumulation_steps=max(context.accumulated_batch_size//context.batch_size, 1)))
+    token_count, loss, val_loss, best_loss, best_val_loss, descent_steps = evaluation_loop.run()
     return best_val_loss
 
 
@@ -80,7 +81,7 @@ def main():
     runtime_context, _ = init_runtime_contexts()
     context.merge(runtime_context)
     
-    pretraining_path = Path("../configs/pretraining.yaml")
+    pretraining_path = Path("configs/pretraining.yaml")
     with pretraining_path.open("r") as f:
         pretraining_dict = yaml.safe_load(f)
     context.merge(Context(**pretraining_dict))
@@ -156,7 +157,7 @@ def main():
     print(f"Best LR is {best_lr}, achieved val loss of {lr_results[best_lr]}")
     print(f"all learning rates:\n {lr_results}")
     
-    context_path = Path("../configs/context.yaml")
+    context_path = Path("configs/context.yaml")
     with context_path.open("r") as f:
         run_context_dict = yaml.safe_load(f)
     run_context_dict["num_layers"] = num_layers

@@ -22,7 +22,7 @@ def main():
     context.merge({"config_dicts": configs})
 
     training_loop, training_config = build_component_from_config(TrainingLoopFactory,
-                                "../configs/training.yaml", context.fork(accumulation_steps=max(context.accumulated_batch_size//context.batch_size, 1)))
+                                "configs/training.yaml", context.fork(accumulation_steps=max(context.accumulated_batch_size//context.batch_size, 1), warmup_steps))
     
     token_count, loss, val_loss, best_train_loss, best_val_loss, total_descent_steps = training_loop.run()
     run = training_loop.aim_logger
