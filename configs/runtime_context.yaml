@@ -1,4 +1,0 @@
-training_parameters:
-  batch_size: 64
-  tokens_per_param: 20
-  training_time: 30

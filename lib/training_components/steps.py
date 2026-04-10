@@ -30,7 +30,8 @@ class EvaluationStep:
         x = x.to(self.device, non_blocking=True)
         with self.autocast_ctx:
             logits = self.model(x[:, :-1])
-            loss = self.criterion(logits.reshape(-1, logits.size(-1)), x[:, 1:].reshape(-1))
+            targets = x[:, 1:][:, -logits.shape[1]:]
+            loss = self.criterion(logits.reshape(-1, logits.size(-1)), targets.reshape(-1))
         return loss
 
 class EvaluationStepFactory(Factory[EvaluationStep]):
@@ -123,7 +124,8 @@ class ValidationStep:
                 val_batch = next(data_iter)
                 x = val_batch.to(self.device, non_blocking=True)
                 logits = self.model(x[:, :-1])
-                val_loss = self.criterion(logits.reshape(-1, logits.size(-1)), x[:, 1:].reshape(-1))
+                targets = x[:, 1:][:, -logits.shape[1]:]
+                val_loss = self.criterion(logits.reshape(-1, logits.size(-1)), targets.reshape(-1))
                 val_losses.append(val_loss.item())
 
             mean_val_loss = torch.tensor(val_losses).mean().item()

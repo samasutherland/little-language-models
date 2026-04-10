@@ -1,9 +1,3 @@
-type: trainingloop
-descent_steps: 3228
-accumulation_steps: 4
-val_frequency: 20
-context_path: ../configs/context.yaml
-
 evaluation_step_factory:
   type: evaluationstep
   
@@ -16,7 +10,6 @@ gradient_step_factory:
 
   scheduler_factory:
     type: onecyclelr
-    lr: 0.0046353708021342754
     initial_div_factor: 3.0
     final_div_factor: 10.0
     peak_frac: 0.001

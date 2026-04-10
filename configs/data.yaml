@@ -1,4 +1,3 @@
-shuffle: true
 prefetch_factor: 8
 
 dataset_factory:

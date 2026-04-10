@@ -1,4 +1,8 @@
-descent_steps: 3000
-experiment_name: "test"
-experiment_dir: "../experiments"
-num_layers: 2
+accumulated_batch_size: 64
+batch_size: 64
+descent_steps: 537
+experiment_dir: ../experiments
+experiment_name: test
+learning_rate: 0.10000000149011612
+num_layers: 9
+val_frequency: 20

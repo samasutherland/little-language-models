@@ -14,7 +14,7 @@ from lib.training_components import OptimizerFactory
 from pathlib import Path
 import os
 
-#
+
 class AimLogger(Run):
     def __init__(self, experiment_name: str, configs: dict):
         super().__init__(experiment=experiment_name)
@@ -30,6 +30,7 @@ class AimLogger(Run):
 
     def track_val_metrics(self, metrics, step):
         self.track_metrics(metrics, step, {"subset": "val"})
+
 
 class AimLoggerFactory(Factory[Run]):
     type: Literal["aimloggerfactory"] = "aimloggerfactory"
@@ -79,8 +80,51 @@ class CheckpointerFactory(Factory[Checkpointer]):
                             experiment_name,
                             folder_name=self.folder_name
                             )
+    
+class NullCheckpointer(Checkpointer):
+    def __init__(self):
+        self.best_loss = float("inf")
+        return
+
+    def compare_loss(self, loss):
+        if loss < self.best_loss:
+            self.best_loss = loss
+            return True
+        return False
+
+    def save_checkpoint(self, step, loss):
+        return
+
+    def compare_loss_and_checkpoint(self, step, loss):
+        self.compare_loss(loss)
+    
+class NullCheckpointerFactory(Factory[Checkpointer]):
+    type: Literal["nullcheckpointerfactory"] = "nullcheckpointerfactory"
+    def build(self, ctx: Context) -> NullCheckpointer:
+        return NullCheckpointer()
+
+class NullLogger(AimLogger):
+    def __init__(self):
+        return
+    
+    def track_metrics(self, metrics, step, context):
+        return
+
+    def track_train_metrics(self, metrics, step):
+        return
+
+    def track_val_metrics(self, metrics, step):
+        return
+
+
+class NullLoggerFactory(Factory[NullLogger]):
+    type: Literal["nullloggerfactory"] = "nullloggerfactory"
+
+    def build(self, ctx: Context) -> NullLogger:
+        return NullLogger()
+
 
 LoggerFactory = Annotated[
-    Union[AimLoggerFactory, CheckpointerFactory],
+    Union[AimLoggerFactory, CheckpointerFactory, NullLoggerFactory, NullCheckpointerFactory],
     Field(discriminator="type"),
 ]

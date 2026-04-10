@@ -73,8 +73,8 @@ class SimpleStoriesBPEDataset(Dataset):
         ids = ids + [self.eos_id]
         if self.max_length is not None:
             if len(ids) >= self.max_length:
-                warnings.warn("Sequence length exceeds max_length. Truncating to max_length (last n tokens retained)")
-                ids = ids[len(ids) - self.max_length:]
+                # warnings.warn("Sequence length exceeds max_length. Truncating to max_length (first n tokens retained)")
+                ids = ids[:self.max_length]
         return torch.tensor(ids, dtype=torch.long)
 
 
