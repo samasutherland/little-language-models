@@ -11,8 +11,10 @@ from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LRScheduler
 
 from lib.training_components import OptimizerFactory
-from pathlib import Path
 import os
+from pathlib import Path
+
+CHECKPOINT_ROOT = "/workspace/data"
 
 
 class AimLogger(Run):
@@ -43,8 +45,15 @@ class AimLoggerFactory(Factory[Run]):
                          configs=configs)
 
 class Checkpointer:
-    def __init__(self, model: nn.Module, optimizer: torch.optim.Optimizer, experiment_name: str|Path, folder_name: str):
-        self.save_dir = os.path.join(experiment_name, folder_name)
+    def __init__(
+        self,
+        model: nn.Module,
+        optimizer: torch.optim.Optimizer,
+        save_dir: str | Path,
+        checkpoint_filename: str,
+    ):
+        self.save_dir = str(save_dir)
+        self.checkpoint_filename = checkpoint_filename
         self.best_loss = float("inf")
         self.model = model
         self.optimizer = optimizer
@@ -60,7 +69,7 @@ class Checkpointer:
 
     def save_checkpoint(self, step, loss):
         torch.save({"model": self.model.state_dict(), "optimizer": self.optimizer.state_dict(),
-                    "step": step, "loss": loss}, os.path.join(self.save_dir, "ckpt_best_val.pt"))
+                    "step": step, "loss": loss}, os.path.join(self.save_dir, self.checkpoint_filename))
 
     def compare_loss_and_checkpoint(self, step, loss):
         if self.compare_loss(loss):
@@ -69,16 +78,18 @@ class Checkpointer:
 class CheckpointerFactory(Factory[Checkpointer]):
     type: Literal["checkpointerfactory"] = "checkpointerfactory"
 
-    folder_name: str|Path
+    folder_name: str | Path
+    checkpoint_filename: str
 
     def build(self, ctx: Context) -> Checkpointer:
         model = ctx.require("model")
         optimizer = ctx.require("optimizer")
         experiment_name = ctx.require("experiment_name")
+        save_dir = os.path.join(CHECKPOINT_ROOT, str(experiment_name), str(self.folder_name))
         return Checkpointer(model,
                             optimizer,
-                            experiment_name,
-                            folder_name=self.folder_name
+                            save_dir=save_dir,
+                            checkpoint_filename=self.checkpoint_filename,
                             )
     
 class NullCheckpointer(Checkpointer):

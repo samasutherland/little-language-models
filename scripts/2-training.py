@@ -6,6 +6,7 @@ from lib.training_components.loops import TrainingLoopFactory
 
 import torch
 import os
+torch.manual_seed(42)
 
 
 def main():
@@ -29,7 +30,13 @@ def main():
     print("Saving final weights...")
     torch.save({"model": context.model.state_dict(), "optimizer": training_loop.gradient_step.optimizer.state_dict(),
                 "step": total_descent_steps}, os.path.join(training_loop.train_checkpointer.save_dir, "ckpt_final.pt"))
+    with open(os.path.join(training_loop.train_checkpointer.save_dir, "aim_run_hash.txt"), "w") as f:
+        f.write(run.hash)
     print("storing token_count and tokens per parameter...")
+    run["git_sha"] = os.environ.get("GIT_SHA", "")
+    run["image_tag"] = os.environ.get("IMAGE_TAG", "")
+    run["pod_name"] = os.environ.get("POD_NAME", "")
+    run["runpod_pod_id"] = os.environ.get("RUNPOD_POD_ID", "")
     run["token_count"] = token_count
     total_params = sum(p.numel() for p in context.model.parameters() if p.requires_grad)
     run["tokens_per_parameter"] = token_count / total_params

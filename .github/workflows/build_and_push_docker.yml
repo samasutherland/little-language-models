@@ -66,13 +66,19 @@ jobs:
             --arg templateId "${{ vars.RUNPOD_TEMPLATE_ID }}" \
             --arg imageName "${{ needs.build-push.outputs.image_tag }}" \
             --arg name "${{ needs.build-push.outputs.pod_name }}" \
+            --arg gitSha "${{ github.sha }}" \
             '{
               templateId: $templateId,
               cloudType: "COMMUNITY",
               gpuCount: 1,
               gpuTypeIds: ["NVIDIA GeForce RTX 4090"],
               imageName: $imageName,
-              name: $name
+              name: $name,
+              env: [
+                {key: "GIT_SHA", value: $gitSha},
+                {key: "IMAGE_TAG", value: $imageName},
+                {key: "POD_NAME", value: $name}
+              ]
             }')
 
           status=$(curl -sS -o resp.json -w "%{http_code}" \

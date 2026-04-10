@@ -31,11 +31,14 @@ aim_logger_factory:
   
 train_checkpointer_factory:
   type: checkpointerfactory
-  folder_name: train_checkpoints
+  folder_name: checkpoints
+  checkpoint_filename: ckpt_best_train.pt
 
 val_checkpointer_factory:
   type: checkpointerfactory
-  folder_name: val_checkpoints
+  folder_name: checkpoints
+  checkpoint_filename: ckpt_best_val.pt
+  
 
 
 
