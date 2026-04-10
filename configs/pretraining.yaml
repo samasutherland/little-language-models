@@ -1,0 +1,3 @@
+tokens_per_param: 20
+training_time: 30
+num_layers_lower_bound: 1

@@ -1,0 +1,3 @@
+dataloader_workers: 4
+persistent_workers: True
+pin_memory: false

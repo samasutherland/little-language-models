@@ -1,6 +1,0 @@
-# Data configs
-
-dataset = "SimpleStories/SimpleStories"
-split = "train"
-max_length = 512
-tokenizer_path = "data/tokenizers/unigram_4K.model"

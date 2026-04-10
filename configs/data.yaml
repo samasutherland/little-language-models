@@ -1,0 +1,10 @@
+prefetch_factor: 8
+
+dataset_factory:
+  type: simplestoriesbpe
+  dataset: SimpleStories/SimpleStories
+  max_length: 512
+
+  tokenizer_factory:
+    type: sentencepiece
+    tokenizer_path: data/tokenizers/unigram_4K.model
