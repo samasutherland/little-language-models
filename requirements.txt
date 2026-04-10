@@ -2,6 +2,7 @@ datasets
 regex
 tqdm
 aim
+PyYAML
 tomlkit
 torchinfo
 tiktoken

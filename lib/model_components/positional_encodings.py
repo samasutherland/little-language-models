@@ -1,10 +1,18 @@
 import torch
 from torch import nn
+from typing import Literal, Annotated, Union
+from pydantic import ConfigDict, Field
+
+from lib import Context, Factory
+
+# ---------- Layer Definitions ---------- #
 
 class RoPE(nn.Module):
-    def __init__(self, max_seq_len, dim, base=10000):
+    def __init__(self, max_context, dim, base):
         super().__init__()
-        m_values = torch.arange(max_seq_len, requires_grad=False)
+        m_values = torch.arange(max_context, requires_grad=False)
+        self.max_context = max_context
+        self.dim = dim
         assert dim % 2 == 0, "RoPE requires even dimension"
 
         theta_values = torch.pow(base, -2 * torch.arange(dim//2, requires_grad=False) / dim)
@@ -25,3 +33,23 @@ class RoPE(nn.Module):
 
         return x_rotated
 
+
+class RoPEFactory(Factory[nn.Module]):
+    
+    type: Literal["rope"] = "rope"
+
+    base: int
+
+    def build(self, ctx: Context) -> nn.Module:
+        max_context = ctx.require("max_context")
+        qk_dim = ctx.require("qk_dim")
+
+        return RoPE(
+            max_context=max_context,
+            dim=qk_dim,
+            base=self.base,
+        )
+
+# ---------- Layer Registration ---------- #
+
+PositionalEncodingFactory = Annotated[Union[RoPEFactory], Field(discriminator="type")]
