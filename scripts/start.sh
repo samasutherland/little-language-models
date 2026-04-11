@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -u
+set -euo pipefail
 
 mkdir -p /secrets
 if [ -n "${RUNPOD_SECRET_RCLONE_GDRIVE_CONF:-}" ]; then
@@ -7,6 +7,7 @@ if [ -n "${RUNPOD_SECRET_RCLONE_GDRIVE_CONF:-}" ]; then
   chmod 600 /secrets/rclone.conf
 fi
 
+mkdir -p /workspace/logs
 exec > >(tee "/workspace/logs/stdout.log")
 exec 2> >(tee "/workspace/logs/stderr.log" >&2)
 
@@ -14,8 +15,11 @@ echo "Pretraining..."
 python3 scripts/1-pretraining.py
 
 echo "Training..."
-timeout -k 10m 30m python3 scripts/2-training.py
-rc=$?
+if timeout -k 10m 30m python3 scripts/2-training.py; then
+  rc=0
+else
+  rc=$?
+fi
 echo "train_model.py exited with $rc"
 sync
 sleep 2
