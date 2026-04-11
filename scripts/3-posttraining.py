@@ -13,7 +13,7 @@ CHECKPOINT_ROOT = "/workspace/data"
 def generate_sample(model, dataset, device, prompt, n_words=15, max_new_tokens=60, temperature=1.0, top_k=50, top_p=0.9):
     model.eval()
     with torch.no_grad():
-        ids0 = dataset.tok.encode(prompt)
+        ids0 = dataset.tok.Encode(prompt)
         ids = torch.tensor(ids0, dtype=torch.long, device=device).unsqueeze(0)
         for i in range(max_new_tokens):
             logits = model(ids)[:, -1, :].float()
@@ -25,10 +25,10 @@ def generate_sample(model, dataset, device, prompt, n_words=15, max_new_tokens=6
                     next_id.item()) == dataset.eos_id:
                 break
             ids = torch.cat([ids, next_id], dim=1)
-            if len(dataset.tok.decode(ids[0].tolist()).split()) >= n_words:
+            if len(dataset.tok.Decode(ids[0].tolist()).split()) >= n_words:
                 break
     model.train()
-    return " ".join(dataset.tok.decode(ids[0].tolist()).split()[:n_words])
+    return " ".join(dataset.tok.Decode(ids[0].tolist()).split()[:n_words])
 
 
 def main():

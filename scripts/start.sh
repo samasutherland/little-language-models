@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -u # Set no fail because otherwise the script fails and is restarted by runpod; the pod is never closed.
 
 mkdir -p /secrets
 if [ -n "${RUNPOD_SECRET_RCLONE_GDRIVE_CONF:-}" ]; then

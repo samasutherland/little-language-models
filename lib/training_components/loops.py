@@ -104,7 +104,7 @@ class TrainingLoop:
 
             self.gradient_step.step()
 
-            if i % self.val_frequency == 0:
+            if i % self.val_frequency == 0 and i != 0:
                 val_loss = self.validation_step.step()
                 self.aim_logger.track_val_metrics({"loss": val_loss}, i)
                 self.val_checkpointer.compare_loss_and_checkpoint(i, val_loss)
