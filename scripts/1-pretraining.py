@@ -21,7 +21,7 @@ import time
 torch.manual_seed(42)
 
 def test_memory_fits(context: Context):
-    context = context.fork(descent_steps=3)
+    context = context.fork(descent_steps=110)
     try: 
         context, _ = init_datasets_and_models(context)
         evaluation_loop, evaluation_loop_config = build_component_from_config(BenchmarkingLoopFactory,
@@ -35,8 +35,9 @@ def test_memory_fits(context: Context):
         total_tokens = tokens_per_second * context.training_time * 60
         total_parameters = sum(p.numel() for p in context.require("model").parameters() if p.requires_grad)
         tokens_per_parameter = total_tokens / total_parameters
-        
-        total_descent_steps = round(((context.training_time * 60) / runtime) * context.descent_steps)
+
+        time_per_step = runtime / context.descent_steps
+        total_descent_steps = round((context.training_time * 60) / time_per_step)
         return True, tokens_per_parameter, total_descent_steps
         
     except RuntimeError as e:
@@ -67,11 +68,20 @@ def find_batch_size(context):
     return final_batch_size, tokens_per_parameter, total_descent_steps
 
 def test_learning_rate(context, lr):
-    context = context.fork(learning_rate=lr, descent_steps=max(context.descent_steps//context.training_time, 1))
+    lr_descent_steps = max(context.descent_steps//context.training_time, 1)
+    context = context.fork(learning_rate=lr, descent_steps=lr_descent_steps)
+    
     evaluation_loop, evaluation_loop_config = build_component_from_config(BenchmarkingLoopFactory,
                                                                           "configs/training.yaml", context.fork(accumulation_steps=max(context.accumulated_batch_size//context.batch_size, 1)))
+    start = time.perf_counter()
     token_count, loss, val_loss, best_loss, best_val_loss, descent_steps = evaluation_loop.run()
-    return best_val_loss
+    end = time.perf_counter()
+    runtime = end - start
+
+    time_per_step = runtime / context.descent_steps
+    total_descent_steps = round((context.training_time * 60) / time_per_step)
+    
+    return best_val_loss, total_descent_steps
 
 
 def main():
@@ -146,13 +156,16 @@ def main():
     base_state_dict = copy.deepcopy(context.model.state_dict())
     
     lr_results = {}
+    lr_test_descent_steps_list = []
     
     for lr in lrs:
         context.model.load_state_dict(base_state_dict)
-        val_loss = test_learning_rate(context, float(lr))
+        val_loss, lr_descent_steps = test_learning_rate(context, float(lr))
+        lr_test_descent_steps_list.append(lr_descent_steps)
         lr_results[float(lr)] = val_loss
         
     best_lr = min(lr_results, key=lr_results.get)
+    descent_steps = min(lr_test_descent_steps_list)
     
     print(f"Best LR is {best_lr}, achieved val loss of {lr_results[best_lr]}")
     print(f"all learning rates:\n {lr_results}")
