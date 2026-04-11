@@ -76,6 +76,7 @@ class TrainingLoop:
 
 
     def run(self,):
+        val_loss = float("inf")
         for i in tqdm(range(self.descent_steps)):
             batch_loss = 0.0
             for j in range(self.accumulation_steps):
