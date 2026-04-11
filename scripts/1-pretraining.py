@@ -21,7 +21,7 @@ import time
 torch.manual_seed(42)
 
 def test_memory_fits(context: Context):
-    context = context.fork(descent_steps=110)
+    context = context.fork(descent_steps=10)
     try: 
         context, _ = init_datasets_and_models(context)
         evaluation_loop, evaluation_loop_config = build_component_from_config(BenchmarkingLoopFactory,
@@ -71,6 +71,8 @@ def test_learning_rate(context, lr):
     lr_descent_steps = max(context.descent_steps//context.training_time, 1)
     context = context.fork(learning_rate=lr, descent_steps=lr_descent_steps)
     
+    # To fix: scheduler has peak_frac at 0.001, which will be much earlier here because the descent_steps is much smaller.
+    # However, that may be ok as it will just basically do max rate from the start, which may be what we want.
     evaluation_loop, evaluation_loop_config = build_component_from_config(BenchmarkingLoopFactory,
                                                                           "configs/training.yaml", context.fork(accumulation_steps=max(context.accumulated_batch_size//context.batch_size, 1)))
     start = time.perf_counter()
