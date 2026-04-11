@@ -24,14 +24,17 @@ def main():
     training_loop, training_config = build_component_from_config(TrainingLoopFactory,
                                 "configs/training.yaml", context.fork(accumulation_steps=max(context.accumulated_batch_size//context.batch_size, 1)))
     
-    token_count, loss, val_loss, best_train_loss, best_val_loss, total_descent_steps = training_loop.run()
     run = training_loop.aim_logger
+    with open(os.path.join(training_loop.train_checkpointer.save_dir, "aim_run_hash.txt"), "w") as f:
+        f.write(run.hash)
+    
+    token_count, loss, val_loss, best_train_loss, best_val_loss, total_descent_steps = training_loop.run()
+    
     
     print("Saving final weights...")
     torch.save({"model": context.model.state_dict(), "optimizer": training_loop.gradient_step.optimizer.state_dict(),
                 "step": total_descent_steps}, os.path.join(training_loop.train_checkpointer.save_dir, "ckpt_final.pt"))
-    with open(os.path.join(training_loop.train_checkpointer.save_dir, "aim_run_hash.txt"), "w") as f:
-        f.write(run.hash)
+    
     print("storing token_count and tokens per parameter...")
     run["git_sha"] = os.environ.get("GIT_SHA", "")
     run["image_tag"] = os.environ.get("IMAGE_TAG", "")
