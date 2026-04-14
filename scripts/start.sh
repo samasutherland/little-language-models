@@ -20,8 +20,8 @@ with p.open("r") as f:
 print(d["experiment_name"])
 PY
 )"
-base_remote="Gdrive:runpod-uploads/${experiment_name}/${aim_run_hash}"
-
+#base_remote="Gdrive:runpod-uploads/${experiment_name}/${aim_run_hash}"
+base_remote="Gdrive:runpod-uploads/${experiment_name}/debug"
 rclone --config /secrets/rclone.conf copy /workspace/logs/ "${base_remote}/logs/" --create-empty-src-dirs --retries 3
 echo "Pretraining..."
 python3 scripts/1-pretraining.py
