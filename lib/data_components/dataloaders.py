@@ -32,10 +32,9 @@ class TorchDataLoaderFactory(Factory[DataLoader]):
         batch_size = ctx.require("batch_size")
         
         shuffle = ctx.require("shuffle")
-        if isinstance(dataset, IterableDataset) and not shuffle:
-            dateset.shuffle = shuffle
+        if isinstance(dataset, IterableDataset):
+            dataset.shuffle = shuffle
             shuffle = False
-
         return DataLoader(dataset,
                           batch_size=batch_size,
                           shuffle=shuffle,
