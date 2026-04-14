@@ -13,6 +13,18 @@ import torch
 from lib.data_components.tokenizers import TokenizerFactory
 from lib import Context, Factory
 
+_HF_SPLIT_CACHE: dict[tuple[str, str], HFDataset] = {}
+
+
+def _load_hf_split_cached(dataset_name: str, split_name: str) -> HFDataset:
+    cache_key = (dataset_name, split_name)
+    cached_split = _HF_SPLIT_CACHE.get(cache_key)
+    if cached_split is None:
+        cached_split = load_dataset(dataset_name, split=split_name)
+        _HF_SPLIT_CACHE[cache_key] = cached_split
+    return cached_split
+
+
 class _TokWrap:
     # Wrapper for a SentencePieceProcessor. This is necessary for multi-gpu as the base class cannot be pickled.
     def __init__(self, model: SentencePieceProcessor):
@@ -106,7 +118,7 @@ class HFTextFactory(Factory[HFTextDataset]):
         split_names = {"train": self.train_split, "validation": self.validation_split}
         split = ctx.require("split")
 
-        hf_split = load_dataset(self.dataset, split=split_names[split])
+        hf_split = _load_hf_split_cached(self.dataset, split_names[split])
 
         tokenizer = self.tokenizer_factory.build(ctx)
 
