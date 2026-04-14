@@ -21,7 +21,7 @@ def init_train_device():
 def init_datasets(context):
     train_dataloader = build_component_from_config(DataLoaderFactory, "configs/data.yaml",
                                                    context.fork(split="train"))
-    val_dataloader = build_component_from_config(DataLoaderFactory, "configs/data.yaml", context.fork(split="test"))
+    val_dataloader = build_component_from_config(DataLoaderFactory, "configs/data.yaml", context.fork(split="validation"))
     return train_dataloader, val_dataloader
 
 def init_datasets_and_models(context, shuffle=True):

@@ -30,12 +30,24 @@ class _TokWrap:
     def Decode(self, ids):
         return self._enc.Decode(ids)
 
-class SimpleStoriesBPEDataset(Dataset):
-    def __init__(self, hf_split: HFDataset, tokenizer: SentencePieceProcessor, max_length=None):
+class HFTextDataset(Dataset):
+    def __init__(
+        self,
+        hf_split: HFDataset,
+        tokenizer: SentencePieceProcessor,
+        text_column: str,
+        max_length=None,
+    ):
 
         self.tok = _TokWrap(tokenizer)
         self.ds = hf_split
+        self.text_column = text_column
         self.max_length = max_length
+        if self.text_column not in self.ds.column_names:
+            raise ValueError(
+                f"Dataset split is missing configured text column '{self.text_column}'. "
+                f"Available columns: {self.ds.column_names}"
+            )
 
     @property
     def pad_id(self):
@@ -69,7 +81,7 @@ class SimpleStoriesBPEDataset(Dataset):
         return len(self.ds)
 
     def __getitem__(self, i):
-        ids = self.tok.Encode(self.ds[i]["story"])
+        ids = self.tok.Encode(self.ds[i][self.text_column])
         ids = ids + [self.eos_id]
         if self.max_length is not None:
             if len(ids) >= self.max_length:
@@ -78,29 +90,33 @@ class SimpleStoriesBPEDataset(Dataset):
         return torch.tensor(ids, dtype=torch.long)
 
 
-class SimpleStoriesBPEFactory(Factory[SimpleStoriesBPEDataset]):
+class HFTextFactory(Factory[HFTextDataset]):
     
-    type: Literal["simplestoriesbpe"] = "simplestoriesbpe"
+    type: Literal["hftext"] = "hftext"
 
     tokenizer_factory: TokenizerFactory
 
     dataset: str
+    text_column: str
+    train_split: str
+    validation_split: str
     max_length: Optional[int]
 
-    def build(self, ctx: Context) -> SimpleStoriesBPEDataset:
+    def build(self, ctx: Context) -> HFTextDataset:
+        split_names = {"train": self.train_split, "validation": self.validation_split}
         split = ctx.require("split")
 
-        data = load_dataset(self.dataset)
-        hf_split = data[split]
+        hf_split = load_dataset(self.dataset, split=split_names[split])
 
         tokenizer = self.tokenizer_factory.build(ctx)
 
-        return SimpleStoriesBPEDataset(
+        return HFTextDataset(
             hf_split=hf_split,
             tokenizer=tokenizer,
+            text_column=self.text_column,
             max_length=self.max_length,
         )
 
 
 DatasetFactory = Annotated[
-    Union[SimpleStoriesBPEFactory], Field(discriminator="type")]
+    Union[HFTextFactory], Field(discriminator="type")]
