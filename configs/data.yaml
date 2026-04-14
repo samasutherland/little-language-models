@@ -5,6 +5,7 @@ dataset_factory:
   dataset: BabyLM-community/BabyLM-2026-Strict
   text_column: text
   max_length: 512
+  pack_to_max_length: true
   train_split: train[:99%]
   validation_split: train[99%:]
 

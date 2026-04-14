@@ -3,7 +3,7 @@ from datasets import load_dataset
 import itertools
 import tqdm
 
-data = load_dataset("BabyLM-community/BabyLM-2026-Strict")
+data = load_dataset("BabyLM-community/BabyLM-2026-Strict", split="train")
 n = 100000
 small_test_portion = data['train'].shuffle(seed=42).select(range(n))
 

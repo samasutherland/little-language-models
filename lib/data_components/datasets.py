@@ -1,5 +1,4 @@
 from typing import Optional, Literal, Annotated, Union
-import warnings
 
 from pydantic import ConfigDict, Field
 
@@ -49,17 +48,22 @@ class HFTextDataset(Dataset):
         tokenizer: SentencePieceProcessor,
         text_column: str,
         max_length=None,
+        pack_to_max_length: bool = False,
     ):
 
         self.tok = _TokWrap(tokenizer)
         self.ds = hf_split
         self.text_column = text_column
         self.max_length = max_length
+        self.pack_to_max_length = pack_to_max_length
         if self.text_column not in self.ds.column_names:
             raise ValueError(
                 f"Dataset split is missing configured text column '{self.text_column}'. "
                 f"Available columns: {self.ds.column_names}"
             )
+        if self.pack_to_max_length:
+            if self.max_length is None:
+                raise ValueError("pack_to_max_length=True requires max_length to be set.")
 
     @property
     def pad_id(self):
@@ -93,8 +97,15 @@ class HFTextDataset(Dataset):
         return len(self.ds)
 
     def __getitem__(self, i):
-        ids = self.tok.Encode(self.ds[i][self.text_column])
-        ids = ids + [self.eos_id]
+        ids = []
+        row_idx = i
+        if not self.pack_to_max_length or self.max_length is None:
+            ids = self.tok.Encode(self.ds[row_idx][self.text_column]) + [self.eos_id]
+        else:
+            while row_idx < len(self.ds) and len(ids) < self.max_length:
+                row_ids = self.tok.Encode(self.ds[row_idx][self.text_column])
+                ids.extend(row_ids + [self.eos_id])
+                row_idx += 1
         if self.max_length is not None:
             if len(ids) >= self.max_length:
                 # warnings.warn("Sequence length exceeds max_length. Truncating to max_length (first n tokens retained)")
@@ -113,6 +124,7 @@ class HFTextFactory(Factory[HFTextDataset]):
     train_split: str
     validation_split: str
     max_length: Optional[int]
+    pack_to_max_length: bool = False
 
     def build(self, ctx: Context) -> HFTextDataset:
         split_names = {"train": self.train_split, "validation": self.validation_split}
@@ -127,6 +139,7 @@ class HFTextFactory(Factory[HFTextDataset]):
             tokenizer=tokenizer,
             text_column=self.text_column,
             max_length=self.max_length,
+            pack_to_max_length=self.pack_to_max_length,
         )
 
 
