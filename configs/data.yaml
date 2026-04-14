@@ -1,11 +1,13 @@
 prefetch_factor: 8
 
 dataset_factory:
-  type: hftext
+  type: hftext_iterable
   dataset: BabyLM-community/BabyLM-2026-Strict
   text_column: text
   max_length: 512
-  pack_to_max_length: true
+  shuffle: true
+  shuffle_buffer_size: 0
+  drop_last: true
   train_split: train[:99%]
   validation_split: train[99%:]
 

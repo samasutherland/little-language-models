@@ -15,12 +15,13 @@ echo "Pretraining..."
 python3 scripts/1-pretraining.py
 
 echo "Training..."
-if timeout -k 10m 30m python3 scripts/2-training.py; then
-  rc=0
-else
-  rc=$?
-fi
-echo "train_model.py exited with $rc"
+python3 scripts/2-training.py
+#if timeout -k 10m 30m python3 scripts/2-training.py; then
+#  rc=0
+#else
+#  rc=$?
+#fi
+#echo "train_model.py exited with $rc"
 sync
 sleep 2
 

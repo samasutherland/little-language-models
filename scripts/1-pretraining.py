@@ -151,8 +151,8 @@ def main():
     
     # ------------------- Learning rate tuning --------------------- # 
 
-    min_lr_exp = -5
-    max_lr_exp = -1
+    min_lr_exp = -3
+    max_lr_exp = 0
     lrs = torch.logspace(min_lr_exp, max_lr_exp, 10)
     context, _ = init_datasets_and_models(context, shuffle=False)
     base_state_dict = copy.deepcopy(context.model.state_dict())

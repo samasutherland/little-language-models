@@ -3,7 +3,7 @@ from functools import partial
 
 from pydantic import ConfigDict, Field
 
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, IterableDataset
 import torch
 
 from lib import Context, Factory
@@ -32,6 +32,9 @@ class TorchDataLoaderFactory(Factory[DataLoader]):
         batch_size = ctx.require("batch_size")
         
         shuffle = ctx.require("shuffle")
+        if isinstance(dataset, IterableDataset) and not shuffle:
+            dateset.shuffle = shuffle
+            shuffle = False
 
         return DataLoader(dataset,
                           batch_size=batch_size,

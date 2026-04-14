@@ -1,4 +1,5 @@
 from typing import Optional, Literal, Annotated, Union
+import random
 
 from pydantic import ConfigDict, Field
 
@@ -6,7 +7,7 @@ from datasets import load_dataset
 from datasets import Dataset as HFDataset
 
 from sentencepiece import SentencePieceProcessor
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, IterableDataset, get_worker_info
 import torch
 
 from lib.data_components.tokenizers import TokenizerFactory
@@ -113,6 +114,95 @@ class HFTextDataset(Dataset):
         return torch.tensor(ids, dtype=torch.long)
 
 
+class HFTextIterableDataset(IterableDataset):
+    def __init__(
+        self,
+        hf_split: HFDataset,
+        tokenizer: SentencePieceProcessor,
+        text_column: str,
+        max_length: int,
+        shuffle: bool,
+        shuffle_buffer_size: int,
+        drop_last: bool,
+    ):
+        self.tok = _TokWrap(tokenizer)
+        self.ds = hf_split
+        self.text_column = text_column
+        self.max_length = max_length
+        self.shuffle = shuffle
+        self.shuffle_buffer_size = shuffle_buffer_size
+        self.drop_last = drop_last
+        if self.text_column not in self.ds.column_names:
+            raise ValueError(
+                f"Dataset split is missing configured text column '{self.text_column}'. "
+                f"Available columns: {self.ds.column_names}"
+            )
+        if self.max_length <= 0:
+            raise ValueError("max_length must be a positive integer.")
+        if self.shuffle_buffer_size < 0:
+            raise ValueError("shuffle_buffer_size must be non-negative.")
+
+    @property
+    def pad_id(self):
+        return self.tok.pad_id
+
+    @property
+    def eos_id(self):
+        return self.tok.eos_id
+
+    @property
+    def bos_id(self):
+        return self.tok.bos_id
+
+    @property
+    def unk_id(self):
+        return self.tok.unk_id
+
+    @property
+    def vocab_size(self):
+        return self.tok.vocab_size
+
+    def _iter_fixed_blocks(self):
+        worker_info = get_worker_info()
+        if worker_info is None:
+            worker_id = 0
+            num_workers = 1
+        else:
+            worker_id = worker_info.id
+            num_workers = worker_info.num_workers
+
+        token_buffer = []
+        for row_idx in range(worker_id, len(self.ds), num_workers):
+            row_ids = self.tok.Encode(self.ds[row_idx][self.text_column])
+            token_buffer.extend(row_ids + [self.eos_id])
+            while len(token_buffer) >= self.max_length:
+                yield token_buffer[:self.max_length]
+                token_buffer = token_buffer[self.max_length:]
+
+        if not self.drop_last and token_buffer:
+            yield token_buffer
+
+    def __iter__(self):
+        if not self.shuffle:
+            for block in self._iter_fixed_blocks():
+                yield torch.tensor(block, dtype=torch.long)
+            return
+
+        rng = random.Random(torch.initial_seed())
+        block_buffer = []
+        for block in self._iter_fixed_blocks():
+            if len(block_buffer) < shuffle_buffer_size:
+                block_buffer.append(block)
+                continue
+            replace_idx = rng.randrange(len(block_buffer))
+            yield torch.tensor(block_buffer[replace_idx], dtype=torch.long)
+            block_buffer[replace_idx] = block
+
+        rng.shuffle(block_buffer)
+        for block in block_buffer:
+            yield torch.tensor(block, dtype=torch.long)
+
+
 class HFTextFactory(Factory[HFTextDataset]):
     
     type: Literal["hftext"] = "hftext"
@@ -124,7 +214,7 @@ class HFTextFactory(Factory[HFTextDataset]):
     train_split: str
     validation_split: str
     max_length: Optional[int]
-    pack_to_max_length: bool = False
+    pack_to_max_length: bool
 
     def build(self, ctx: Context) -> HFTextDataset:
         split_names = {"train": self.train_split, "validation": self.validation_split}
@@ -143,5 +233,37 @@ class HFTextFactory(Factory[HFTextDataset]):
         )
 
 
+class HFTextIterableFactory(Factory[HFTextIterableDataset]):
+    type: Literal["hftext_iterable"] = "hftext_iterable"
+
+    tokenizer_factory: TokenizerFactory
+
+    dataset: str
+    text_column: str
+    train_split: str
+    validation_split: str
+    max_length: int
+    shuffle: bool = False
+    shuffle_buffer_size: int
+    drop_last: bool
+
+    def build(self, ctx: Context) -> HFTextIterableDataset:
+        split_names = {"train": self.train_split, "validation": self.validation_split}
+        split = ctx.require("split")
+
+        hf_split = _load_hf_split_cached(self.dataset, split_names[split])
+        tokenizer = self.tokenizer_factory.build(ctx)
+
+        return HFTextIterableDataset(
+            hf_split=hf_split,
+            tokenizer=tokenizer,
+            text_column=self.text_column,
+            max_length=self.max_length,
+            shuffle=self.shuffle,
+            shuffle_buffer_size=self.shuffle_buffer_size,
+            drop_last=self.drop_last,
+        )
+
+
 DatasetFactory = Annotated[
-    Union[HFTextFactory], Field(discriminator="type")]
+    Union[HFTextFactory, HFTextIterableFactory], Field(discriminator="type")]
