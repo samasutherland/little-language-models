@@ -29,7 +29,7 @@ def main():
     runtime_context, _ = init_runtime_contexts()
     context.merge(runtime_context)
 
-    pretrainer = build_component_from_config(PretrainerFactory, "configs/pretraining.yaml", context)
+    pretrainer, pretraining_context = build_component_from_config(PretrainerFactory, "configs/pretraining.yaml", context)
     context = pretrainer.run(context)
     
     context_path = Path("configs/context.yaml")
