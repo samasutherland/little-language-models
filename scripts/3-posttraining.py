@@ -8,7 +8,6 @@ import torch
 import os
 from aim import Run
 torch.manual_seed(42)
-CHECKPOINT_ROOT = "/workspace/data"
 
 def generate_sample(model, dataset, device, prompt, n_words=15, max_new_tokens=60, temperature=1.0, top_k=50, top_p=0.9):
     model.eval()
@@ -43,7 +42,7 @@ def main():
 
     configs = runtime_configs | data_and_model_configs
     context.merge({"config_dicts": configs})
-    save_dir = os.path.join(CHECKPOINT_ROOT, context.experiment_name, "checkpoints")
+    save_dir = os.path.join("data/", context.experiment_name, "checkpoints")
     
     try:
         model_data = torch.load(os.path.join(save_dir, "ckpt_final.pt"), map_location=torch.device('cpu'))
