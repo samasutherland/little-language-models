@@ -136,6 +136,7 @@ class HFTextIterableDataset(IterableDataset):
         max_length: int,
         shuffle: bool,
         shuffle_buffer_size: int,
+        shuffle_seed: Optional[int],
         drop_last: bool,
     ):
         self.tok = _TokWrap(tokenizer)
@@ -144,6 +145,7 @@ class HFTextIterableDataset(IterableDataset):
         self.max_length = max_length
         self.shuffle = shuffle
         self.shuffle_buffer_size = shuffle_buffer_size
+        self.shuffle_seed = shuffle_seed
         self.drop_last = drop_last
         if self.text_column not in self.ds.column_names:
             raise ValueError(
@@ -154,6 +156,8 @@ class HFTextIterableDataset(IterableDataset):
             raise ValueError("max_length must be a positive integer.")
         if self.shuffle_buffer_size < 0:
             raise ValueError("shuffle_buffer_size must be non-negative.")
+        if self.shuffle and self.shuffle_buffer_size > 0 and self.shuffle_seed is None:
+            raise ValueError("shuffle_seed must be set when shuffle is enabled with a non-zero shuffle_buffer_size.")
 
     @property
     def pad_id(self):
@@ -201,7 +205,10 @@ class HFTextIterableDataset(IterableDataset):
                 yield torch.tensor(block, dtype=torch.long)
             return
 
-        rng = random.Random(torch.initial_seed())
+        worker_info = get_worker_info()
+        worker_id = 0 if worker_info is None else worker_info.id
+        seed = self.shuffle_seed + worker_id
+        rng = random.Random(seed)
         block_buffer = []
         for block in self._iter_fixed_blocks():
             if len(block_buffer) < self.shuffle_buffer_size:
@@ -264,6 +271,7 @@ class HFTextIterableFactory(Factory[HFTextIterableDataset]):
     max_length: int
     shuffle: bool = False
     shuffle_buffer_size: int
+    shuffle_seed: Optional[int] = None
     drop_last: bool
 
     def build(self, ctx: Context) -> HFTextIterableDataset:
@@ -284,6 +292,7 @@ class HFTextIterableFactory(Factory[HFTextIterableDataset]):
             max_length=self.max_length,
             shuffle=self.shuffle,
             shuffle_buffer_size=self.shuffle_buffer_size,
+            shuffle_seed=self.shuffle_seed,
             drop_last=self.drop_last,
         )
 

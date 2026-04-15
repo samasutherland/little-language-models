@@ -19,7 +19,6 @@ from contextlib import nullcontext
 from pathlib import Path
 import yaml
 import time
-torch.manual_seed(42)
 
 
 def main():
@@ -28,6 +27,7 @@ def main():
     
     runtime_context, _ = init_runtime_contexts()
     context.merge(runtime_context)
+    torch.manual_seed(context.require("seed"))
 
     pretrainer, pretraining_context = build_component_from_config(PretrainerFactory, "configs/pretraining.yaml", context)
     context = pretrainer.run(context)

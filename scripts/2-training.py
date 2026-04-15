@@ -6,7 +6,6 @@ from lib.training_components.loops import TrainingLoopFactory
 
 import torch
 import os
-torch.manual_seed(42)
 
 
 def main():
@@ -15,6 +14,7 @@ def main():
 
     runtime_context, runtime_configs = init_runtime_contexts()
     context.merge(runtime_context)
+    torch.manual_seed(context.require("seed"))
 
     context, data_and_model_configs = init_datasets_and_models(context, shuffle=True)
     

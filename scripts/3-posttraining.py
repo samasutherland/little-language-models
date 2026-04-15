@@ -7,7 +7,6 @@ from lib.training_components.loops import TrainingLoopFactory
 import torch
 import os
 from aim import Run
-torch.manual_seed(42)
 
 def generate_sample(model, dataset, device, prompt, n_words=15, max_new_tokens=60, temperature=1.0, top_k=50, top_p=0.9):
     model.eval()
@@ -37,6 +36,7 @@ def main():
 
     runtime_context, runtime_configs = init_runtime_contexts()
     context.merge(runtime_context)
+    torch.manual_seed(context.require("seed"))
 
     context, data_and_model_configs = init_datasets_and_models(context, shuffle=False)
 
