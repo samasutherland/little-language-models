@@ -171,16 +171,55 @@ class LearningRateSweep:
                  min_lr_exp: float,
                  max_lr_exp: float,
                  num_lrs: int,
+                 variance_window_size: int,
+                 variance_weight: float,
                  ):
         self.sweep_time = sweep_time
         self.min_lr_exp = min_lr_exp # -3
         self.max_lr_exp = max_lr_exp # 0
         self.num_lrs = num_lrs # 10
+        self.variance_window_size = variance_window_size
+        self.variance_weight = variance_weight
+
+    def _average_moving_window_variance(self, losses: list[float]) -> float:
+        if len(losses) < 2:
+            return 0.0
+        if self.variance_window_size < 2:
+            raise ValueError("variance_window_size must be at least 2.")
+
+        losses_tensor = torch.tensor(losses, dtype=torch.float32)
+        max_start = len(losses_tensor) - self.variance_window_size + 1
+        if max_start <= 0:
+            return torch.var(losses_tensor, unbiased=False).item()
+
+        window_variances = []
+        for start_idx in range(max_start):
+            window = losses_tensor[start_idx:start_idx + self.variance_window_size]
+            window_variances.append(torch.var(window, unbiased=False))
+        return torch.stack(window_variances).mean().item()
+
+    @staticmethod
+    def _normalize_metric(values: list[float]) -> list[float]:
+        if not values:
+            return []
+        min_value = min(values)
+        max_value = max(values)
+        value_range = max_value - min_value
+        if value_range == 0:
+            return [0.0 for _ in values]
+        return [(value - min_value) / value_range for value in values]
         
         
     def test_learning_rate(self, context: Context, lr: float):
         lr_descent_steps = int(max(self.sweep_time * context.descent_steps / context.training_time, 1)) ## context.descent_steps / context.training_time is number of steps for 1 minute of training
-        context = context.fork(learning_rate=lr, descent_steps=lr_descent_steps)
+        # Align validation cadence to the short LR-sweep run length so validation happens on the last step.
+        # TrainingLoop validates when i % val_frequency == 0 and i != 0, so val_frequency should be last_step_idx.
+        val_frequency = max(lr_descent_steps - 1, 1)
+        context = context.fork(
+            learning_rate=lr,
+            descent_steps=lr_descent_steps,
+            val_frequency=val_frequency,
+        )
 
         # To fix: scheduler has peak_frac at 0.001, which will be much earlier here because the descent_steps is much smaller.
         # However, that may be ok as it will just basically do max rate from the start, which may be what we want.
@@ -188,14 +227,17 @@ class LearningRateSweep:
                                                                               "configs/training.yaml", context.fork(
                 accumulation_steps=max(context.accumulated_batch_size // context.batch_size, 1)))
         start = time.perf_counter()
-        token_count, loss, val_loss, best_loss, best_val_loss, descent_steps = evaluation_loop.run()
+        token_count, loss, val_loss, best_loss, best_val_loss, descent_steps, loss_history = evaluation_loop.run(
+            return_loss_history=True
+        )
         end = time.perf_counter()
         runtime = end - start
 
         time_per_step = runtime / context.descent_steps
         total_descent_steps = round((context.training_time * 60) / time_per_step)
+        moving_window_variance = self._average_moving_window_variance(loss_history)
 
-        return best_val_loss, total_descent_steps
+        return best_val_loss, moving_window_variance, total_descent_steps
     
     def run(self, context: Context):
         lrs = torch.logspace(self.min_lr_exp, self.max_lr_exp, self.num_lrs)
@@ -203,19 +245,30 @@ class LearningRateSweep:
         base_state_dict = copy.deepcopy(context.model.state_dict())
 
         lr_results = {}
+        variance_results = {}
+        score_results = {}
         lr_test_descent_steps_list = []
 
         for lr in lrs:
             context.model.load_state_dict(base_state_dict)
-            val_loss, lr_descent_steps = self.test_learning_rate(context, float(lr))
+            val_loss, moving_window_variance, lr_descent_steps = self.test_learning_rate(context, float(lr))
             lr_test_descent_steps_list.append(lr_descent_steps)
             lr_results[float(lr)] = val_loss
+            variance_results[float(lr)] = moving_window_variance
 
-        best_lr = min(lr_results, key=lr_results.get)
-        descent_steps = min(lr_test_descent_steps_list)
+        lr_keys = list(lr_results.keys())
+        normalized_val_losses = self._normalize_metric([lr_results[lr] for lr in lr_keys])
+        normalized_variances = self._normalize_metric([variance_results[lr] for lr in lr_keys])
+        for idx, lr in enumerate(lr_keys):
+            score_results[lr] = normalized_val_losses[idx] + self.variance_weight * normalized_variances[idx]
 
-        print(f"Best LR is {best_lr}, achieved val loss of {lr_results[best_lr]}")
+        best_lr = min(score_results, key=score_results.get)
+        descent_steps = min(lr_test_descent_steps_list, 1)
+
+        print(f"Best LR is {best_lr}, score={score_results[best_lr]}, val loss={lr_results[best_lr]}, variance={variance_results[best_lr]}")
         print(f"all learning rates:\n {lr_results}")
+        print(f"all moving window variances:\n {variance_results}")
+        print(f"all combined scores:\n {score_results}")
         
         return context.fork(learning_rate=best_lr, descent_steps=descent_steps)
     
@@ -226,13 +279,17 @@ class LearningRateSweepFactory(Factory[LayerSweep]):
     min_lr_exp: float
     max_lr_exp: float
     num_lrs: int
+    variance_window_size: int
+    variance_weight: float
 
     def build(self, ctx: Context) -> LearningRateSweep:
 
         return LearningRateSweep(sweep_time=self.sweep_time,
                                  min_lr_exp=self.min_lr_exp,
                                  max_lr_exp=self.max_lr_exp,
-                                 num_lrs=self.num_lrs)
+                                 num_lrs=self.num_lrs,
+                                 variance_window_size=self.variance_window_size,
+                                 variance_weight=self.variance_weight)
 
 SweepFactory = Annotated[
     Union[LearningRateSweepFactory, LayerSweepFactory],

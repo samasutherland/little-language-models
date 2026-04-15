@@ -78,11 +78,12 @@ class TrainingLoop:
 
 
 
-    def run(self,):
+    def run(self, return_loss_history: bool = False):
         val_loss = float("inf")
         iterator = tqdm(range(self.descent_steps), desc=f"Train loss: inf, Best loss: inf, Val loss: inf")
         dataloader = iter(self.dataloader)
         break_flag = False
+        loss_history = [] if return_loss_history else None
         for i in iterator:
             batch_loss = 0.0
             for j in range(self.accumulation_steps):
@@ -116,6 +117,8 @@ class TrainingLoop:
             if torch.isfinite(torch.tensor(batch_loss)):
                 train_metrics["perplexity"] = torch.exp(torch.tensor(batch_loss).clamp(max=88.72)).item()
             train_metrics["lr"] = self.gradient_step.lr
+            if return_loss_history:
+                loss_history.append(batch_loss)
 
             self.aim_logger.track_train_metrics(train_metrics, i)
             self.train_checkpointer.compare_loss_and_checkpoint(i, batch_loss)
@@ -131,7 +134,17 @@ class TrainingLoop:
                 
         total_descent_steps = i + 1
 
-        return self.token_count, batch_loss, val_loss, self.train_checkpointer.best_loss, self.val_checkpointer.best_loss, total_descent_steps
+        result = (
+            self.token_count,
+            batch_loss,
+            val_loss,
+            self.train_checkpointer.best_loss,
+            self.val_checkpointer.best_loss,
+            total_descent_steps,
+        )
+        if return_loss_history:
+            return result + (loss_history,)
+        return result
 
 class TrainingLoopFactory(Factory[TrainingLoop]):
     type: Literal["trainingloop"] = "trainingloop"
