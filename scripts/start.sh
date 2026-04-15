@@ -42,7 +42,7 @@ print(d["experiment_name"])
 PY
 )"
   
-aim_run_hash="$(cat "/workspace/data/${experiment_name}/checkpoints/aim_run_hash.txt")"
+aim_run_hash="$(cat "/workspace/data/checkpoints/aim_run_hash.txt")"
 base_remote="Gdrive:runpod-uploads/${experiment_name}/${aim_run_hash}"
 
 rclone --config /secrets/rclone.conf copy /workspace/logs/ "${base_remote}/logs/" --create-empty-src-dirs --retries 3
