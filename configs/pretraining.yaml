@@ -1,3 +1,15 @@
 tokens_per_param: 20
 training_time: 30
-num_layers_lower_bound: 1
+
+layer_sweep:
+  type: layersweep
+  descent_steps: 10
+  lower_bound: 4
+  method: first_above
+  
+learning_rate_sweep:
+  type: learningratesweep
+  sweep_time: 1
+  min_lr_exp: -3
+  max_lr_exp: 0
+  num_lrs: 10
