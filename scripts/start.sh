@@ -22,8 +22,8 @@ python3 scripts/2-training.py
 #  rc=$?
 #fi
 #echo "train_model.py exited with $rc"
-sync
-sleep 2
+#sync
+#sleep 2
 
 echo "Posttraining..."
 python3 scripts/3-posttraining.py
