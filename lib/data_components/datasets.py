@@ -183,7 +183,7 @@ class HFTextIterableDataset(IterableDataset):
             yield token_buffer
 
     def __iter__(self):
-        if not self.shuffle:
+        if not self.shuffle or self.shuffle_buffer_size == 0:
             for block in self._iter_fixed_blocks():
                 yield torch.tensor(block, dtype=torch.long)
             return
@@ -191,7 +191,7 @@ class HFTextIterableDataset(IterableDataset):
         rng = random.Random(torch.initial_seed())
         block_buffer = []
         for block in self._iter_fixed_blocks():
-            if len(block_buffer) < shuffle_buffer_size:
+            if len(block_buffer) < self.shuffle_buffer_size:
                 block_buffer.append(block)
                 continue
             replace_idx = rng.randrange(len(block_buffer))

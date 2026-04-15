@@ -38,10 +38,10 @@ class TorchDataLoaderFactory(Factory[DataLoader]):
         return DataLoader(dataset,
                           batch_size=batch_size,
                           shuffle=shuffle,
-                          prefetch_factor=self.prefetch_factor,
+                          prefetch_factor=self.prefetch_factor if num_workers > 0 else None,
                           collate_fn=collate,
                           num_workers=num_workers,
-                          persistent_workers=persistent_workers,
+                          persistent_workers=persistent_workers if num_workers > 0 else None,
                           pin_memory=pin_memory,
                           )
 
