@@ -25,6 +25,19 @@ def _load_hf_split_cached(dataset_name: str, split_name: str) -> HFDataset:
     return cached_split
 
 
+def _interleave_holdout_split(hf_split: HFDataset, split: str, every_n: int) -> HFDataset:
+    if every_n <= 1:
+        raise ValueError("every_n must be greater than 1.")
+    if split not in {"train", "validation"}:
+        raise ValueError(f"Unsupported split '{split}'. Expected 'train' or 'validation'.")
+
+    keep_validation = split == "validation"
+    return hf_split.filter(
+        lambda _, idx: (idx % every_n == 0) if keep_validation else (idx % every_n != 0),
+        with_indices=True,
+    )
+
+
 class _TokWrap:
     # Wrapper for a SentencePieceProcessor. This is necessary for multi-gpu as the base class cannot be pickled.
     def __init__(self, model: SentencePieceProcessor):
@@ -213,6 +226,7 @@ class HFTextFactory(Factory[HFTextDataset]):
     text_column: str
     train_split: str
     validation_split: str
+    interleave_holdout_every_n: int = 100
     max_length: Optional[int]
     pack_to_max_length: bool
 
@@ -220,7 +234,11 @@ class HFTextFactory(Factory[HFTextDataset]):
         split_names = {"train": self.train_split, "validation": self.validation_split}
         split = ctx.require("split")
 
-        hf_split = _load_hf_split_cached(self.dataset, split_names[split])
+        if self.train_split == self.validation_split:
+            hf_base_split = _load_hf_split_cached(self.dataset, self.train_split)
+            hf_split = _interleave_holdout_split(hf_base_split, split, self.interleave_holdout_every_n)
+        else:
+            hf_split = _load_hf_split_cached(self.dataset, split_names[split])
 
         tokenizer = self.tokenizer_factory.build(ctx)
 
@@ -242,6 +260,7 @@ class HFTextIterableFactory(Factory[HFTextIterableDataset]):
     text_column: str
     train_split: str
     validation_split: str
+    interleave_holdout_every_n: int = 100
     max_length: int
     shuffle: bool = False
     shuffle_buffer_size: int
@@ -251,7 +270,11 @@ class HFTextIterableFactory(Factory[HFTextIterableDataset]):
         split_names = {"train": self.train_split, "validation": self.validation_split}
         split = ctx.require("split")
 
-        hf_split = _load_hf_split_cached(self.dataset, split_names[split])
+        if self.train_split == self.validation_split:
+            hf_base_split = _load_hf_split_cached(self.dataset, self.train_split)
+            hf_split = _interleave_holdout_split(hf_base_split, split, self.interleave_holdout_every_n)
+        else:
+            hf_split = _load_hf_split_cached(self.dataset, split_names[split])
         tokenizer = self.tokenizer_factory.build(ctx)
 
         return HFTextIterableDataset(
