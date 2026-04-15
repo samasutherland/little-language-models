@@ -14,8 +14,6 @@ from lib.training_components import OptimizerFactory
 import os
 from pathlib import Path
 
-CHECKPOINT_ROOT = "/workspace/data"
-
 
 class AimLogger(Run):
     def __init__(self, experiment_name: str, configs: dict):
@@ -79,13 +77,13 @@ class CheckpointerFactory(Factory[Checkpointer]):
     type: Literal["checkpointerfactory"] = "checkpointerfactory"
 
     folder_name: str | Path
+    checkpoint_root: str | Path = "data/"
     checkpoint_filename: str
 
     def build(self, ctx: Context) -> Checkpointer:
         model = ctx.require("model")
         optimizer = ctx.require("optimizer")
-        experiment_name = ctx.require("experiment_name")
-        save_dir = os.path.join(CHECKPOINT_ROOT, str(experiment_name), str(self.folder_name))
+        save_dir = os.path.join(self.checkpoint_root, str(self.folder_name))
         return Checkpointer(model,
                             optimizer,
                             save_dir=save_dir,
