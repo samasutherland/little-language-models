@@ -21,7 +21,7 @@ gradient_step_factory:
       
 validation_step_factory:
   type: validationstep
-  validation_batches: 5
+  validation_batches: 10
   
   criterion_factory:
     type: crossentropy

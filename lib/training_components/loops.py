@@ -77,7 +77,8 @@ class TrainingLoop:
 
     def run(self,):
         val_loss = float("inf")
-        for i in tqdm(range(self.descent_steps)):
+        iterator = tqdm(range(self.descent_steps), desc=f"Train loss: inf, Best loss: inf, Val loss: inf")
+        for i in iterator:
             batch_loss = 0.0
             for j in range(self.accumulation_steps):
                 x = next(self.dataloader)
@@ -109,6 +110,8 @@ class TrainingLoop:
                 val_loss = self.validation_step.step()
                 self.aim_logger.track_val_metrics({"loss": val_loss}, i)
                 self.val_checkpointer.compare_loss_and_checkpoint(i, val_loss)
+                
+            iterator.set_description(f"Train loss: {loss:.2f}, Best loss: {self.train_checkpointer.best_loss:.2f}, Val loss: {val_loss:.2f}")
                 
         total_descent_steps = i + 1
 
