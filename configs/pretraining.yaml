@@ -14,4 +14,4 @@ learning_rate_sweep:
   max_lr_exp: 0
   num_lrs: 10
   variance_window_size: 20
-  variance_weight: 0.75
+  variance_weight: 1.0
