@@ -53,10 +53,12 @@ class TrainingLoop:
                  aim_logger: AimLogger,
                  train_checkpointer: Checkpointer,
                  val_checkpointer: Checkpointer,
+                 
+                 loop_dataset: bool
 
                  ):
         self.loss_buffer = Buffer(100)
-        self.dataloader = iter(dataloader)
+        self.dataloader = dataloader
 
         self.descent_steps = descent_steps
         self.accumulation_steps = accumulation_steps
@@ -72,16 +74,28 @@ class TrainingLoop:
         self.aim_logger = aim_logger
         self.train_checkpointer = train_checkpointer
         self.val_checkpointer = val_checkpointer
+        self.loop_dataset = loop_dataset
 
 
 
     def run(self,):
         val_loss = float("inf")
         iterator = tqdm(range(self.descent_steps), desc=f"Train loss: inf, Best loss: inf, Val loss: inf")
+        dataloader = iter(self.dataloader)
+        break_flag = False
         for i in iterator:
             batch_loss = 0.0
             for j in range(self.accumulation_steps):
-                x = next(self.dataloader)
+                try:
+                    x = next(dataloader)
+                except StopIteration:
+                    if self.loop_dataset:
+                        dataloader = iter(self.dataloader)
+                        x = next(dataloader)
+                    else:
+                        warnings.warn("dataloader ran out and loop_dataset is set to False. Stopping run.")
+                        break_flag = True
+                        break
                 self.token_count += x[:, 1:].numel()
                 loss = self.evaluation_step.step(x)
 
@@ -95,7 +109,9 @@ class TrainingLoop:
                 batch_loss += loss.item()
 
                 loss.backward()
-
+            if break_flag:
+                break
+                
             train_metrics = {"loss": batch_loss}
             if torch.isfinite(torch.tensor(batch_loss)):
                 train_metrics["perplexity"] = torch.exp(torch.tensor(batch_loss).clamp(max=88.72)).item()
@@ -111,11 +127,11 @@ class TrainingLoop:
                 self.aim_logger.track_val_metrics({"loss": val_loss}, i)
                 self.val_checkpointer.compare_loss_and_checkpoint(i, val_loss)
                 
-            iterator.set_description(f"Train loss: {loss:.2f}, Best loss: {self.train_checkpointer.best_loss:.2f}, Val loss: {val_loss:.2f}")
+            iterator.set_description(f"Train loss: {batch_loss:.2f}, Best loss: {self.train_checkpointer.best_loss:.2f}, Val loss: {val_loss:.2f}")
                 
         total_descent_steps = i + 1
 
-        return self.token_count, loss, val_loss, self.train_checkpointer.best_loss, self.val_checkpointer.best_loss, total_descent_steps
+        return self.token_count, batch_loss, val_loss, self.train_checkpointer.best_loss, self.val_checkpointer.best_loss, total_descent_steps
 
 class TrainingLoopFactory(Factory[TrainingLoop]):
     type: Literal["trainingloop"] = "trainingloop"
@@ -127,6 +143,8 @@ class TrainingLoopFactory(Factory[TrainingLoop]):
     aim_logger_factory: LoggerFactory
     train_checkpointer_factory: LoggerFactory
     val_checkpointer_factory: LoggerFactory
+    
+    loop_dataset: bool
 
     def build(self, ctx: Context) -> TrainingLoop:
         
@@ -157,7 +175,8 @@ class TrainingLoopFactory(Factory[TrainingLoop]):
                             validation_step=validation_step,
                             aim_logger=aim_logger,
                             train_checkpointer=train_checkpointer,
-                            val_checkpointer=val_checkpointer,)
+                            val_checkpointer=val_checkpointer,
+                            loop_dataset=self.loop_dataset,)
 
 
 class BenchmarkingLoopFactory(Factory[TrainingLoop]):
@@ -174,6 +193,7 @@ class BenchmarkingLoopFactory(Factory[TrainingLoop]):
     # val_checkpointer_factory: LoggerFactory
 
     # context_path: str | Path
+    loop_dataset: bool
 
     def build(self, ctx: Context) -> TrainingLoop:
         dataloader = ctx.require("train_dataloader")
@@ -202,7 +222,8 @@ class BenchmarkingLoopFactory(Factory[TrainingLoop]):
                             validation_step=validation_step,
                             aim_logger=aim_logger,
                             train_checkpointer=train_checkpointer,
-                            val_checkpointer=val_checkpointer, )
+                            val_checkpointer=val_checkpointer, 
+                            loop_dataset=self.loop_dataset,)
 
 LoopFactory = Annotated[
     Union[TrainingLoopFactory, BenchmarkingLoopFactory],

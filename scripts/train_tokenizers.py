@@ -4,8 +4,8 @@ import itertools
 import tqdm
 
 data = load_dataset("BabyLM-community/BabyLM-2026-Strict", split="train")
-n = 100000
-small_test_portion = data['train'].shuffle(seed=42).select(range(n))
+n = 10000000
+small_test_portion = data.shuffle(seed=42).select(range(n))
 
 def doc_stream():
     for s in small_test_portion["text"]:
