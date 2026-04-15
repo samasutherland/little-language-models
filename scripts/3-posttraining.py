@@ -42,7 +42,7 @@ def main():
 
     configs = runtime_configs | data_and_model_configs
     context.merge({"config_dicts": configs})
-    save_dir = os.path.join("data/", context.experiment_name, "checkpoints")
+    save_dir = os.path.join("data/", "checkpoints")
     
     try:
         model_data = torch.load(os.path.join(save_dir, "ckpt_final.pt"), map_location=torch.device('cpu'))
