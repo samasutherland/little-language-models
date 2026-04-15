@@ -57,17 +57,19 @@ def main():
     # Generate example outputs
     
     examples = []
-    for opener in ["the dog ", "sam went ", "caitlin pooped on the ", "jayden had a jolly good time ",
-                   "a spaceship landed in the forest ", "trees swayed "]:
+    for opener in ["the dog ", "sam went ", "caitlin stood on the ", "jayden had a jolly good time ",
+                   "a spaceship landed in the forest ", "trees swayed ", "What do you think about the existence of God?"]:
         examples.append(
             generate_sample(context.model, context.train_dataloader.dataset, device, opener, n_words=100, max_new_tokens=100, temperature=0.0))
             
     # Validate Model
+    print("Starting validation")
     training_loop, training_config = build_component_from_config(TrainingLoopFactory,
                                 "configs/training.yaml", context.fork(accumulation_steps=max(context.accumulated_batch_size//context.batch_size, 1)))
     validation_step = training_loop.validation_step
     validation_step.num_batches = None
     validation_error = validation_step.step()
+    print(f"Validation completed. Error: {float(validation_error)}")
 
     with open(os.path.join(save_dir, "aim_run_hash.txt"), "r") as f:
         run_hash = f.read().strip()
