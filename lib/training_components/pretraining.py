@@ -263,7 +263,7 @@ class LearningRateSweep:
             score_results[lr] = normalized_val_losses[idx] + self.variance_weight * normalized_variances[idx]
 
         best_lr = min(score_results, key=score_results.get)
-        descent_steps = min(lr_test_descent_steps_list, 1)
+        descent_steps = min(lr_test_descent_steps_list)
 
         print(f"Best LR is {best_lr}, score={score_results[best_lr]}, val loss={lr_results[best_lr]}, variance={variance_results[best_lr]}")
         print(f"all learning rates:\n {lr_results}")
