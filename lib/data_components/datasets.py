@@ -136,7 +136,7 @@ class HFTextIterableDataset(IterableDataset):
         max_length: int,
         shuffle: bool,
         shuffle_buffer_size: int,
-        shuffle_seed: Optional[int],
+        seed: Optional[int],
         drop_last: bool,
     ):
         self.tok = _TokWrap(tokenizer)
@@ -145,7 +145,7 @@ class HFTextIterableDataset(IterableDataset):
         self.max_length = max_length
         self.shuffle = shuffle
         self.shuffle_buffer_size = shuffle_buffer_size
-        self.shuffle_seed = shuffle_seed
+        self.seed = seed
         self.drop_last = drop_last
         if self.text_column not in self.ds.column_names:
             raise ValueError(
@@ -156,8 +156,8 @@ class HFTextIterableDataset(IterableDataset):
             raise ValueError("max_length must be a positive integer.")
         if self.shuffle_buffer_size < 0:
             raise ValueError("shuffle_buffer_size must be non-negative.")
-        if self.shuffle and self.shuffle_buffer_size > 0 and self.shuffle_seed is None:
-            raise ValueError("shuffle_seed must be set when shuffle is enabled with a non-zero shuffle_buffer_size.")
+        if self.shuffle and self.shuffle_buffer_size > 0 and self.seed is None:
+            raise ValueError("seed must be set when shuffle is enabled with a non-zero shuffle_buffer_size.")
 
     @property
     def pad_id(self):
@@ -207,7 +207,7 @@ class HFTextIterableDataset(IterableDataset):
 
         worker_info = get_worker_info()
         worker_id = 0 if worker_info is None else worker_info.id
-        seed = self.shuffle_seed + worker_id
+        seed = self.seed + worker_id
         rng = random.Random(seed)
         block_buffer = []
         for block in self._iter_fixed_blocks():
@@ -271,7 +271,6 @@ class HFTextIterableFactory(Factory[HFTextIterableDataset]):
     max_length: int
     shuffle: bool = False
     shuffle_buffer_size: int
-    shuffle_seed: Optional[int] = None
     drop_last: bool
 
     def build(self, ctx: Context) -> HFTextIterableDataset:
@@ -284,6 +283,7 @@ class HFTextIterableFactory(Factory[HFTextIterableDataset]):
         else:
             hf_split = _load_hf_split_cached(self.dataset, split_names[split])
         tokenizer = self.tokenizer_factory.build(ctx)
+        seed = ctx.require("seed") if self.shuffle and self.shuffle_buffer_size > 0 else None
 
         return HFTextIterableDataset(
             hf_split=hf_split,
@@ -292,7 +292,7 @@ class HFTextIterableFactory(Factory[HFTextIterableDataset]):
             max_length=self.max_length,
             shuffle=self.shuffle,
             shuffle_buffer_size=self.shuffle_buffer_size,
-            shuffle_seed=self.shuffle_seed,
+            seed=seed,
             drop_last=self.drop_last,
         )
 
