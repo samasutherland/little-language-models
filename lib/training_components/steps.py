@@ -108,7 +108,7 @@ class ValidationStep:
                  criterion: nn.Module,
                  device: torch.device,
                  data_loader: DataLoader,
-                 num_batches: int):
+                 num_batches: int|None):
         self.model = model
         self.criterion = criterion
         self.device = device
@@ -120,13 +120,22 @@ class ValidationStep:
         with torch.no_grad():
             val_losses = []
             data_iter = iter(self.data_loader)
-            for i in range(self.num_batches):
-                val_batch = next(data_iter)
+            
+            if self.num_batches is None:
+                self.num_batches = float("inf")
+                
+            i = 0
+            while i < self.num_batches:
+                try:
+                    val_batch = next(data_iter)
+                except StopIteration:
+                    break
                 x = val_batch.to(self.device, non_blocking=True)
                 logits = self.model(x[:, :-1])
                 targets = x[:, 1:][:, -logits.shape[1]:]
                 val_loss = self.criterion(logits.reshape(-1, logits.size(-1)), targets.reshape(-1))
                 val_losses.append(val_loss.item())
+                i += 1
 
             mean_val_loss = torch.tensor(val_losses).mean().item()
 
@@ -137,7 +146,7 @@ class ValidationStepFactory(Factory[ValidationStep]):
 
     criterion_factory: CriterionFactory
 
-    validation_batches: int
+    validation_batches: int | None
 
     def build(self, ctx: Context) -> ValidationStep:
         model = ctx.require("model")

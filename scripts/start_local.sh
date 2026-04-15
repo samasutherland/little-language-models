@@ -30,5 +30,3 @@ sleep 2
 
 echo "Posttraining..."
 python3 scripts/3-posttraining.py
-
-exit "${rc}"

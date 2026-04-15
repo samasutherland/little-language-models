@@ -66,7 +66,7 @@ def main():
     training_loop, training_config = build_component_from_config(TrainingLoopFactory,
                                 "configs/training.yaml", context.fork(accumulation_steps=max(context.accumulated_batch_size//context.batch_size, 1)))
     validation_step = training_loop.validation_step
-    validation_step.num_batches = len(validation_step.data_loader)
+    validation_step.num_batches = None
     validation_error = validation_step.step()
 
     with open(os.path.join(save_dir, "aim_run_hash.txt"), "r") as f:

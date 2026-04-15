@@ -1,7 +1,7 @@
 accumulated_batch_size: 256
 batch_size: 64
-descent_steps: 510
+descent_steps: 877
 experiment_name: test
-learning_rate: 0.10000000149011612
-num_layers: 10
+learning_rate: 0.04641588777303696
+num_layers: 1
 val_frequency: 30
