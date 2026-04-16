@@ -25,15 +25,26 @@ def _load_hf_split_cached(dataset_name: str, split_name: str) -> HFDataset:
     return cached_split
 
 
-def _interleave_holdout_split(hf_split: HFDataset, split: str, every_n: int) -> HFDataset:
+def _interleave_holdout_split(
+    hf_split: HFDataset,
+    split: str,
+    every_n: int,
+    holdout_block_size: int,
+) -> HFDataset:
     if every_n <= 1:
         raise ValueError("every_n must be greater than 1.")
+    if holdout_block_size < 1:
+        raise ValueError("holdout_block_size must be at least 1.")
+    if holdout_block_size >= every_n:
+        raise ValueError("holdout_block_size must be less than every_n.")
     if split not in {"train", "validation"}:
         raise ValueError(f"Unsupported split '{split}'. Expected 'train' or 'validation'.")
 
     keep_validation = split == "validation"
     return hf_split.filter(
-        lambda _, idx: (idx % every_n == 0) if keep_validation else (idx % every_n != 0),
+        lambda _, idx: (idx % every_n < holdout_block_size)
+        if keep_validation
+        else (idx % every_n >= holdout_block_size),
         with_indices=True,
     )
 
@@ -136,7 +147,7 @@ class HFTextIterableDataset(IterableDataset):
         max_length: int,
         shuffle: bool,
         shuffle_buffer_size: int,
-        seed: Optional[int],
+        seed: int,
         drop_last: bool,
     ):
         self.tok = _TokWrap(tokenizer)
@@ -234,6 +245,7 @@ class HFTextFactory(Factory[HFTextDataset]):
     train_split: str
     validation_split: str
     interleave_holdout_every_n: int = 100
+    interleave_holdout_block_size: int = 1
     max_length: Optional[int]
     pack_to_max_length: bool
 
@@ -243,7 +255,12 @@ class HFTextFactory(Factory[HFTextDataset]):
 
         if self.train_split == self.validation_split:
             hf_base_split = _load_hf_split_cached(self.dataset, self.train_split)
-            hf_split = _interleave_holdout_split(hf_base_split, split, self.interleave_holdout_every_n)
+            hf_split = _interleave_holdout_split(
+                hf_base_split,
+                split,
+                self.interleave_holdout_every_n,
+                self.interleave_holdout_block_size,
+            )
         else:
             hf_split = _load_hf_split_cached(self.dataset, split_names[split])
 
@@ -268,6 +285,7 @@ class HFTextIterableFactory(Factory[HFTextIterableDataset]):
     train_split: str
     validation_split: str
     interleave_holdout_every_n: int = 100
+    interleave_holdout_block_size: int = 1
     max_length: int
     shuffle: bool = False
     shuffle_buffer_size: int
@@ -279,11 +297,16 @@ class HFTextIterableFactory(Factory[HFTextIterableDataset]):
 
         if self.train_split == self.validation_split:
             hf_base_split = _load_hf_split_cached(self.dataset, self.train_split)
-            hf_split = _interleave_holdout_split(hf_base_split, split, self.interleave_holdout_every_n)
+            hf_split = _interleave_holdout_split(
+                hf_base_split,
+                split,
+                self.interleave_holdout_every_n,
+                self.interleave_holdout_block_size,
+            )
         else:
             hf_split = _load_hf_split_cached(self.dataset, split_names[split])
         tokenizer = self.tokenizer_factory.build(ctx)
-        seed = ctx.require("seed") if self.shuffle and self.shuffle_buffer_size > 0 else None
+        seed = ctx.require("seed")
 
         return HFTextIterableDataset(
             hf_split=hf_split,

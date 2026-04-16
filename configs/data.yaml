@@ -10,7 +10,8 @@ dataset_factory:
   drop_last: true
   train_split: train
   validation_split: train
-  interleave_holdout_every_n: 100
+  interleave_holdout_every_n: 10000
+  interleave_holdout_block_size: 100
 
   tokenizer_factory:
     type: sentencepiece
