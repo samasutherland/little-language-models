@@ -6,6 +6,8 @@ from lib.training_components.loops import TrainingLoopFactory
 
 import torch
 import os
+from pathlib import Path
+import yaml
 
 
 def main():
@@ -17,8 +19,11 @@ def main():
     torch.manual_seed(context.require("seed"))
 
     context, data_and_model_configs = init_datasets_and_models(context, shuffle=True)
-    
-    configs = runtime_configs | data_and_model_configs
+
+    with Path("configs/pretraining.yaml").open("r") as f:
+        pretraining_config = yaml.safe_load(f)
+
+    configs = runtime_configs | data_and_model_configs | {"pretraining": pretraining_config}
     context.merge({"config_dicts": configs})
 
     training_loop, training_config = build_component_from_config(TrainingLoopFactory,
