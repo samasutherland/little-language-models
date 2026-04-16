@@ -2,7 +2,7 @@ from lib.utils import init_train_device, init_datasets_and_models, init_runtime_
 from lib.component_builder import build_component_from_config
 
 from lib import Context
-from lib.training_components.loops import TrainingLoopFactory
+from lib.training_components.loops import BenchmarkingLoopFactory
 
 import torch
 import os
@@ -62,11 +62,14 @@ def main():
         examples.append(
             generate_sample(context.model, context.train_dataloader.dataset, device, opener, n_words=100, max_new_tokens=100, temperature=0.0))
             
-    # Validate Model
+    # Validate Model (BenchmarkingLoopFactory: same steps as training, no Aim run)
     print("Starting validation")
-    training_loop, training_config = build_component_from_config(TrainingLoopFactory,
-                                "configs/training.yaml", context.fork(accumulation_steps=max(context.accumulated_batch_size//context.batch_size, 1)))
-    validation_step = training_loop.validation_step
+    benchmarking_loop, training_config = build_component_from_config(
+        BenchmarkingLoopFactory,
+        "configs/training.yaml",
+        context.fork(accumulation_steps=max(context.accumulated_batch_size // context.batch_size, 1)),
+    )
+    validation_step = benchmarking_loop.validation_step
     validation_step.num_batches = None
     validation_error = validation_step.step()
     print(f"Validation completed. Error: {float(validation_error)}")
