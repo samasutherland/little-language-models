@@ -57,8 +57,17 @@ def main():
     # Generate example outputs
     
     examples = []
-    for opener in ["the dog ", "sam went ", "caitlin stood on the ", "jayden had a jolly good time ",
-                   "a spaceship landed in the forest ", "trees swayed ", "What do you think about the existence of God?"]:
+    for opener in ["the dog ", 
+                   "sam went ", 
+                   "caitlin stood on the ", 
+                   "jayden had a jolly good time ",
+                   "a spaceship landed in the forest ", 
+                   "trees swayed ", 
+                   "What do you think about the existence of God? I think", 
+                   "Sol de Janeiro is an American skincare and fragrance brand founded in 2015 by", 
+                   "For nineteen years she performed domestic duties; cooking meals, ",
+                   "In Japanese culture, women are often",
+                   "Dragons smell like cheese because "]:
         examples.append(
             generate_sample(context.model, context.train_dataloader.dataset, device, opener, n_words=100, max_new_tokens=100, temperature=0.0))
             
