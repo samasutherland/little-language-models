@@ -23,11 +23,14 @@ def main():
     with Path("configs/pretraining.yaml").open("r") as f:
         pretraining_config = yaml.safe_load(f)
 
-    configs = runtime_configs | data_and_model_configs | {"pretraining": pretraining_config}
-    context.merge({"config_dicts": configs})
-
     training_loop, training_config = build_component_from_config(TrainingLoopFactory,
                                 "configs/training.yaml", context.fork(accumulation_steps=max(context.accumulated_batch_size//context.batch_size, 1)))
+    
+    configs = runtime_configs | data_and_model_configs | {
+        "pretraining": pretraining_config,
+        "training": training_config,
+    }
+    context.merge({"config_dicts": configs})
     
     run = training_loop.aim_logger
     with open(os.path.join(training_loop.train_checkpointer.save_dir, "aim_run_hash.txt"), "w") as f:
