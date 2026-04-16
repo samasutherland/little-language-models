@@ -313,7 +313,7 @@ class Pretrainer:
         context = context.fork(tokens_per_param=self.tokens_per_param, training_time=self.training_time)
         
         context = self.layer_sweep.run(context)
-        # context = self.learning_rate_sweep.run(context)
+        context = self.learning_rate_sweep.run(context)
         
         return context
     
