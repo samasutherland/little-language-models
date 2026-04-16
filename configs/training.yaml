@@ -12,9 +12,9 @@ gradient_step_factory:
 
   scheduler_factory:
     type: onecyclelr
-    initial_div_factor: 10.0
-    final_div_factor: 100.0
-    peak_frac: 0.05
+    initial_div_factor: 3.0
+    final_div_factor: 10.0
+    peak_frac: 0.3
     
     optimizer_factory:
       type: adamw
