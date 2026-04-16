@@ -3,6 +3,6 @@ batch_size: 64
 descent_steps: 2885
 seed: 42
 experiment_name: learning_rate_search_balanced_pct
-learning_rate: 0.02
+learning_rate: 0.002
 num_layers: 21
 val_frequency: 30
