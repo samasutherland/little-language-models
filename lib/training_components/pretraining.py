@@ -46,9 +46,12 @@ class LayerSweep:
             context, _ = init_datasets_and_models(context)
             evaluation_loop, evaluation_loop_config = build_component_from_config(BenchmarkingLoopFactory,
                                                                                   "configs/training.yaml", context)
+            # Exclude validation from throughput timing; run configured validation separately.
+            evaluation_loop.val_frequency = evaluation_loop.descent_steps + 1
             start = time.perf_counter()
             token_count, *_ = evaluation_loop.run()
             end = time.perf_counter()
+            _ = evaluation_loop.validation_step.step()
             runtime = end - start
 
             tokens_per_second = token_count / runtime
@@ -168,15 +171,15 @@ class LayerSweepFactory(Factory[LayerSweep]):
 class LearningRateSweep:
     def __init__(self,
                  sweep_time: float,
-                 min_lr_exp: float,
-                 max_lr_exp: float,
+                 min_lr: float,
+                 max_lr: float,
                  num_lrs: int,
                  variance_window_size: int,
                  variance_weight: float,
                  ):
         self.sweep_time = sweep_time
-        self.min_lr_exp = min_lr_exp # -3
-        self.max_lr_exp = max_lr_exp # 0
+        self.min_lr = min_lr
+        self.max_lr = max_lr
         self.num_lrs = num_lrs # 10
         self.variance_window_size = variance_window_size
         self.variance_weight = variance_weight
@@ -226,11 +229,14 @@ class LearningRateSweep:
         evaluation_loop, evaluation_loop_config = build_component_from_config(BenchmarkingLoopFactory,
                                                                               "configs/training.yaml", context.fork(
                 accumulation_steps=max(context.accumulated_batch_size // context.batch_size, 1)))
+        # Exclude validation from timing and evaluate once separately using configured validation_batches.
+        evaluation_loop.val_frequency = evaluation_loop.descent_steps + 1
         start = time.perf_counter()
-        token_count, loss, val_loss, best_loss, best_val_loss, descent_steps, loss_history = evaluation_loop.run(
+        token_count, loss, _, best_loss, _, descent_steps, loss_history = evaluation_loop.run(
             return_loss_history=True
         )
         end = time.perf_counter()
+        best_val_loss = evaluation_loop.validation_step.step()
         runtime = end - start
 
         time_per_step = runtime / context.descent_steps
@@ -240,7 +246,14 @@ class LearningRateSweep:
         return best_val_loss, moving_window_variance, total_descent_steps
     
     def run(self, context: Context):
-        lrs = torch.logspace(self.min_lr_exp, self.max_lr_exp, self.num_lrs)
+        if self.min_lr <= 0 or self.max_lr <= 0:
+            raise ValueError("min_lr and max_lr must be positive for logarithmic spacing.")
+        if self.min_lr > self.max_lr:
+            raise ValueError("min_lr must be less than or equal to max_lr.")
+
+        lrs = torch.logspace(torch.log10(torch.tensor(self.min_lr)),
+                            torch.log10(torch.tensor(self.max_lr)),
+                            self.num_lrs)
         context, _ = init_datasets_and_models(context, shuffle=False)
         base_state_dict = copy.deepcopy(context.model.state_dict())
 
@@ -276,8 +289,8 @@ class LearningRateSweepFactory(Factory[LayerSweep]):
     type: Literal["learningratesweep"] = "learningratesweep"
 
     sweep_time: float
-    min_lr_exp: float
-    max_lr_exp: float
+    min_lr: float
+    max_lr: float
     num_lrs: int
     variance_window_size: int
     variance_weight: float
@@ -285,8 +298,8 @@ class LearningRateSweepFactory(Factory[LayerSweep]):
     def build(self, ctx: Context) -> LearningRateSweep:
 
         return LearningRateSweep(sweep_time=self.sweep_time,
-                                 min_lr_exp=self.min_lr_exp,
-                                 max_lr_exp=self.max_lr_exp,
+                                 min_lr=self.min_lr,
+                                 max_lr=self.max_lr,
                                  num_lrs=self.num_lrs,
                                  variance_window_size=self.variance_window_size,
                                  variance_weight=self.variance_weight)
@@ -300,17 +313,23 @@ class Pretrainer:
     def __init__(self,
                  tokens_per_param: int|float,
                  training_time: int|float,
+                 warmup_steps: int,
                  layer_sweep: LayerSweep,
                  learning_rate_sweep: LearningRateSweep,):
         
         self.tokens_per_param = tokens_per_param
         self.training_time = training_time
+        self.warmup_steps = warmup_steps
         
         self.layer_sweep = layer_sweep
         self.learning_rate_sweep = learning_rate_sweep
         
     def run(self, context: Context):
-        context = context.fork(tokens_per_param=self.tokens_per_param, training_time=self.training_time)
+        context = context.fork(
+            tokens_per_param=self.tokens_per_param,
+            training_time=self.training_time,
+            warmup_steps=self.warmup_steps,
+        )
         
         context = self.layer_sweep.run(context)
         context = self.learning_rate_sweep.run(context)
@@ -322,6 +341,7 @@ class PretrainerFactory(Factory[Pretrainer]):
     
     tokens_per_param: int | float
     training_time: int | float
+    warmup_steps: int 
     layer_sweep: SweepFactory
     learning_rate_sweep: SweepFactory
     
@@ -330,5 +350,6 @@ class PretrainerFactory(Factory[Pretrainer]):
         layer_sweep = self.layer_sweep.build(ctx)
         return Pretrainer(tokens_per_param=self.tokens_per_param,
                           training_time=self.training_time,
+                          warmup_steps=self.warmup_steps,
                           layer_sweep=layer_sweep,
                           learning_rate_sweep=learning_rate_sweep)
