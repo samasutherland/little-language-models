@@ -41,11 +41,11 @@ class LayerSweep:
             raise ValueError("method must be either closest or first_above")
 
     def test_memory_fits(self, context: Context):
-        context = context.fork(descent_steps=self.descent_steps)
         try:
             context, _ = init_datasets_and_models(context)
             evaluation_loop, evaluation_loop_config = build_component_from_config(BenchmarkingLoopFactory,
                                                                                   "configs/training.yaml", context)
+            evaluation_loop.descent_steps = self.descent_steps
             # Exclude validation from throughput timing; run configured validation separately.
             evaluation_loop.val_frequency = evaluation_loop.descent_steps + 1
             dataloader_iter = warmup_dataloader(evaluation_loop, context.require("warmup_steps"))
