@@ -60,7 +60,7 @@ class LayerSweep:
             total_parameters = sum(p.numel() for p in context.require("model").parameters() if p.requires_grad)
             tokens_per_parameter = total_tokens / total_parameters
 
-            time_per_step = runtime / context.descent_steps
+            time_per_step = runtime / self.descent_steps
             total_descent_steps = round((context.training_time * 60) / time_per_step)
             return True, tokens_per_parameter, total_descent_steps
 
@@ -332,8 +332,12 @@ class Pretrainer:
             warmup_steps=self.warmup_steps,
         )
         
+        print("Finding num layers:")
         context = self.layer_sweep.run(context)
+        print("num layers found.")
+        print("Finding learning rate:")
         context = self.learning_rate_sweep.run(context)
+        print("learning rate found.")
         
         return context
     
