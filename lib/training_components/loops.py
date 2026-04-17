@@ -1,4 +1,5 @@
 import warnings
+from collections.abc import Iterator
 from typing import Literal, Annotated, Union, Any, Dict
 from pydantic import Field, ConfigDict
 from torch.utils.data import DataLoader
@@ -54,8 +55,7 @@ class TrainingLoop:
                  train_checkpointer: Checkpointer,
                  val_checkpointer: Checkpointer,
                  
-                 loop_dataset: bool,
-                 warmup_steps: int = 0
+                 loop_dataset: bool
 
                  ):
         self.loss_buffer = Buffer(100)
@@ -76,25 +76,13 @@ class TrainingLoop:
         self.train_checkpointer = train_checkpointer
         self.val_checkpointer = val_checkpointer
         self.loop_dataset = loop_dataset
-        self.warmup_steps = warmup_steps
 
 
 
-    def run(self, return_loss_history: bool = False):
+    def run(self, return_loss_history: bool = False, dataloader_iter: Iterator | None = None):
         val_loss = float("inf")
         iterator = tqdm(range(self.descent_steps), desc=f"Train loss: inf, Best loss: inf, Val loss: inf")
-        dataloader = iter(self.dataloader)
-
-        for _ in range(self.warmup_steps):
-            try:
-                _ = next(dataloader)
-            except StopIteration:
-                if self.loop_dataset:
-                    dataloader = iter(self.dataloader)
-                    _ = next(dataloader)
-                else:
-                    warnings.warn("dataloader ran out during warmup and loop_dataset is set to False. Continuing without further warmup.")
-                    break
+        dataloader = dataloader_iter if dataloader_iter is not None else iter(self.dataloader)
 
         break_flag = False
         loss_history = [] if return_loss_history else None
@@ -203,8 +191,7 @@ class TrainingLoopFactory(Factory[TrainingLoop]):
                             aim_logger=aim_logger,
                             train_checkpointer=train_checkpointer,
                             val_checkpointer=val_checkpointer,
-                            loop_dataset=self.loop_dataset,
-                            warmup_steps=0,)
+                            loop_dataset=self.loop_dataset,)
 
 
 class BenchmarkingLoopFactory(Factory[TrainingLoop]):
@@ -251,8 +238,7 @@ class BenchmarkingLoopFactory(Factory[TrainingLoop]):
                             aim_logger=aim_logger,
                             train_checkpointer=train_checkpointer,
                             val_checkpointer=val_checkpointer, 
-                            loop_dataset=self.loop_dataset,
-                            warmup_steps=ctx.require("warmup_steps"),)
+                            loop_dataset=self.loop_dataset,)
 
 LoopFactory = Annotated[
     Union[TrainingLoopFactory, BenchmarkingLoopFactory],

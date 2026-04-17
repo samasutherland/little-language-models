@@ -78,7 +78,6 @@ def main():
         "configs/training.yaml",
         context.fork(
             accumulation_steps=max(context.accumulated_batch_size // context.batch_size, 1),
-            warmup_steps=0,
         ),
     )
     validation_step = benchmarking_loop.validation_step

@@ -46,6 +46,22 @@ def init_runtime_contexts():
     return context, {"run_context": run_context_dict, "server": server_dict}
 
 
+def warmup_dataloader(loop, warmup_steps: int):
+    dataloader = iter(loop.dataloader)
+    if warmup_steps <= 0:
+        return dataloader
+    for _ in range(warmup_steps):
+        try:
+            _ = next(dataloader)
+        except StopIteration:
+            if loop.loop_dataset:
+                dataloader = iter(loop.dataloader)
+                _ = next(dataloader)
+            else:
+                break
+    return dataloader
+
+
 def fibonacci_search(func, func_args=(), func_kwargs=None, lower_bound=1, upper_bound=32):
     if func_kwargs is None:
         func_kwargs = {}

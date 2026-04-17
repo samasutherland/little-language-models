@@ -25,7 +25,7 @@ from lib.training_components.steps import EvaluationStep, GradientStep, Validati
 from lib.training_components.loops import BenchmarkingLoopFactory
 import time
 
-from ..utils import init_datasets_and_models, build_component_from_config
+from ..utils import init_datasets_and_models, build_component_from_config, warmup_dataloader
 from sympy import divisors
 
 
@@ -48,10 +48,11 @@ class LayerSweep:
                                                                                   "configs/training.yaml", context)
             # Exclude validation from throughput timing; run configured validation separately.
             evaluation_loop.val_frequency = evaluation_loop.descent_steps + 1
+            dataloader_iter = warmup_dataloader(evaluation_loop, context.require("warmup_steps"))
             start = time.perf_counter()
-            token_count, *_ = evaluation_loop.run()
+            token_count, *_ = evaluation_loop.run(dataloader_iter=dataloader_iter)
             end = time.perf_counter()
-            _ = evaluation_loop.validation_step.step()
+            _ = evaluation_loop.validation_step.step()  # not sure if validation affects the memory usage too much but better to be safe
             runtime = end - start
 
             tokens_per_second = token_count / runtime
@@ -217,33 +218,33 @@ class LearningRateSweep:
         lr_descent_steps = int(max(self.sweep_time * context.descent_steps / context.training_time, 1)) ## context.descent_steps / context.training_time is number of steps for 1 minute of training
         # Align validation cadence to the short LR-sweep run length so validation happens on the last step.
         # TrainingLoop validates when i % val_frequency == 0 and i != 0, so val_frequency should be last_step_idx.
-        val_frequency = max(lr_descent_steps - 1, 1)
+        val_frequency = max(lr_descent_steps + 1, 1)
         context = context.fork(
             learning_rate=lr,
-            descent_steps=lr_descent_steps,
             val_frequency=val_frequency,
         )
 
-        # To fix: scheduler has peak_frac at 0.001, which will be much earlier here because the descent_steps is much smaller.
-        # However, that may be ok as it will just basically do max rate from the start, which may be what we want.
+        # Build with full descent steps so scheduler matches full run, then change descent steps of loop to stop earlier.
         evaluation_loop, evaluation_loop_config = build_component_from_config(BenchmarkingLoopFactory,
                                                                               "configs/training.yaml", context.fork(
                 accumulation_steps=max(context.accumulated_batch_size // context.batch_size, 1)))
         # Exclude validation from timing and evaluate once separately using configured validation_batches.
-        evaluation_loop.val_frequency = evaluation_loop.descent_steps + 1
+        evaluation_loop.descent_steps = lr_descent_steps
+        dataloader_iter = warmup_dataloader(evaluation_loop, context.require("warmup_steps"))
         start = time.perf_counter()
-        token_count, loss, _, best_loss, _, descent_steps, loss_history = evaluation_loop.run(
-            return_loss_history=True
+        token_count, loss, val_loss, best_loss, best_val_loss, descent_steps, loss_history = evaluation_loop.run(
+            return_loss_history=True,
+            dataloader_iter=dataloader_iter,
         )
         end = time.perf_counter()
-        best_val_loss = evaluation_loop.validation_step.step()
+        val_loss = evaluation_loop.validation_step.step()
         runtime = end - start
 
-        time_per_step = runtime / context.descent_steps
+        time_per_step = runtime / lr_descent_steps
         total_descent_steps = round((context.training_time * 60) / time_per_step)
         moving_window_variance = self._average_moving_window_variance(loss_history)
 
-        return best_val_loss, moving_window_variance, total_descent_steps
+        return val_loss, moving_window_variance, total_descent_steps
     
     def run(self, context: Context):
         if self.min_lr <= 0 or self.max_lr <= 0:
@@ -341,7 +342,7 @@ class PretrainerFactory(Factory[Pretrainer]):
     
     tokens_per_param: int | float
     training_time: int | float
-    warmup_steps: int 
+    warmup_steps: int
     layer_sweep: SweepFactory
     learning_rate_sweep: SweepFactory
     
