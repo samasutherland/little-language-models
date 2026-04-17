@@ -168,15 +168,15 @@ class LayerSweepFactory(Factory[LayerSweep]):
 class LearningRateSweep:
     def __init__(self,
                  sweep_time: float,
-                 min_lr_exp: float,
-                 max_lr_exp: float,
+                 min_lr: float,
+                 max_lr: float,
                  num_lrs: int,
                  variance_window_size: int,
                  variance_weight: float,
                  ):
         self.sweep_time = sweep_time
-        self.min_lr_exp = min_lr_exp # -3
-        self.max_lr_exp = max_lr_exp # 0
+        self.min_lr = min_lr
+        self.max_lr = max_lr
         self.num_lrs = num_lrs # 10
         self.variance_window_size = variance_window_size
         self.variance_weight = variance_weight
@@ -240,7 +240,14 @@ class LearningRateSweep:
         return best_val_loss, moving_window_variance, total_descent_steps
     
     def run(self, context: Context):
-        lrs = torch.logspace(self.min_lr_exp, self.max_lr_exp, self.num_lrs)
+        if self.min_lr <= 0 or self.max_lr <= 0:
+            raise ValueError("min_lr and max_lr must be positive for logarithmic spacing.")
+        if self.min_lr > self.max_lr:
+            raise ValueError("min_lr must be less than or equal to max_lr.")
+
+        lrs = torch.logspace(torch.log10(torch.tensor(self.min_lr)),
+                            torch.log10(torch.tensor(self.max_lr)),
+                            self.num_lrs)
         context, _ = init_datasets_and_models(context, shuffle=False)
         base_state_dict = copy.deepcopy(context.model.state_dict())
 
@@ -276,8 +283,8 @@ class LearningRateSweepFactory(Factory[LayerSweep]):
     type: Literal["learningratesweep"] = "learningratesweep"
 
     sweep_time: float
-    min_lr_exp: float
-    max_lr_exp: float
+    min_lr: float
+    max_lr: float
     num_lrs: int
     variance_window_size: int
     variance_weight: float
@@ -285,8 +292,8 @@ class LearningRateSweepFactory(Factory[LayerSweep]):
     def build(self, ctx: Context) -> LearningRateSweep:
 
         return LearningRateSweep(sweep_time=self.sweep_time,
-                                 min_lr_exp=self.min_lr_exp,
-                                 max_lr_exp=self.max_lr_exp,
+                                 min_lr=self.min_lr,
+                                 max_lr=self.max_lr,
                                  num_lrs=self.num_lrs,
                                  variance_window_size=self.variance_window_size,
                                  variance_weight=self.variance_weight)
