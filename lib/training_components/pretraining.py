@@ -46,9 +46,12 @@ class LayerSweep:
             context, _ = init_datasets_and_models(context)
             evaluation_loop, evaluation_loop_config = build_component_from_config(BenchmarkingLoopFactory,
                                                                                   "configs/training.yaml", context)
+            # Exclude validation from throughput timing; run configured validation separately.
+            evaluation_loop.val_frequency = evaluation_loop.descent_steps + 1
             start = time.perf_counter()
             token_count, *_ = evaluation_loop.run()
             end = time.perf_counter()
+            _ = evaluation_loop.validation_step.step()
             runtime = end - start
 
             tokens_per_second = token_count / runtime
@@ -226,11 +229,14 @@ class LearningRateSweep:
         evaluation_loop, evaluation_loop_config = build_component_from_config(BenchmarkingLoopFactory,
                                                                               "configs/training.yaml", context.fork(
                 accumulation_steps=max(context.accumulated_batch_size // context.batch_size, 1)))
+        # Exclude validation from timing and evaluate once separately using configured validation_batches.
+        evaluation_loop.val_frequency = evaluation_loop.descent_steps + 1
         start = time.perf_counter()
-        token_count, loss, val_loss, best_loss, best_val_loss, descent_steps, loss_history = evaluation_loop.run(
+        token_count, loss, _, best_loss, _, descent_steps, loss_history = evaluation_loop.run(
             return_loss_history=True
         )
         end = time.perf_counter()
+        best_val_loss = evaluation_loop.validation_step.step()
         runtime = end - start
 
         time_per_step = runtime / context.descent_steps
