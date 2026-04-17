@@ -71,12 +71,15 @@ def main():
         examples.append(
             generate_sample(context.model, context.train_dataloader.dataset, device, opener, n_words=100, max_new_tokens=100, temperature=0.0))
             
-    # Validate Model (BenchmarkingLoopFactory: same steps as training, no Aim run)
+    # Validate Model
     print("Starting validation")
     benchmarking_loop, training_config = build_component_from_config(
         BenchmarkingLoopFactory,
         "configs/training.yaml",
-        context.fork(accumulation_steps=max(context.accumulated_batch_size // context.batch_size, 1)),
+        context.fork(
+            accumulation_steps=max(context.accumulated_batch_size // context.batch_size, 1),
+            warmup_steps=0,
+        ),
     )
     validation_step = benchmarking_loop.validation_step
     validation_step.num_batches = None

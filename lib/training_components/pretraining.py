@@ -300,17 +300,23 @@ class Pretrainer:
     def __init__(self,
                  tokens_per_param: int|float,
                  training_time: int|float,
+                 warmup_steps: int,
                  layer_sweep: LayerSweep,
                  learning_rate_sweep: LearningRateSweep,):
         
         self.tokens_per_param = tokens_per_param
         self.training_time = training_time
+        self.warmup_steps = warmup_steps
         
         self.layer_sweep = layer_sweep
         self.learning_rate_sweep = learning_rate_sweep
         
     def run(self, context: Context):
-        context = context.fork(tokens_per_param=self.tokens_per_param, training_time=self.training_time)
+        context = context.fork(
+            tokens_per_param=self.tokens_per_param,
+            training_time=self.training_time,
+            warmup_steps=self.warmup_steps,
+        )
         
         context = self.layer_sweep.run(context)
         context = self.learning_rate_sweep.run(context)
@@ -322,6 +328,7 @@ class PretrainerFactory(Factory[Pretrainer]):
     
     tokens_per_param: int | float
     training_time: int | float
+    warmup_steps: int 
     layer_sweep: SweepFactory
     learning_rate_sweep: SweepFactory
     
@@ -330,5 +337,6 @@ class PretrainerFactory(Factory[Pretrainer]):
         layer_sweep = self.layer_sweep.build(ctx)
         return Pretrainer(tokens_per_param=self.tokens_per_param,
                           training_time=self.training_time,
+                          warmup_steps=self.warmup_steps,
                           layer_sweep=layer_sweep,
                           learning_rate_sweep=learning_rate_sweep)
