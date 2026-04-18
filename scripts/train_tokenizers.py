@@ -18,7 +18,7 @@ texts = [s.strip() for s in tqdm.tqdm(small_test_portion["text"]) if s and s.str
 def doc_stream():
     yield from texts
 
-vocab_counts = [12, 15, 20]
+vocab_counts = [9]
 
 for vocab_size in tqdm.tqdm(vocab_counts):
     spm.SentencePieceTrainer.train(
