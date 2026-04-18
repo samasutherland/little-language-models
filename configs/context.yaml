@@ -4,5 +4,5 @@ descent_steps: 2885
 seed: 67
 experiment_name: tokens_per_parameter_search
 learning_rate: 0.1
-num_layers: 15
+num_layers: 22
 val_frequency: 30
