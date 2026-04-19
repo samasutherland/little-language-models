@@ -2,7 +2,7 @@ accumulated_batch_size: 256
 batch_size: 64
 descent_steps: 2885
 seed: 67
-experiment_name: tokens_per_parameter_search
+experiment_name: simplestoriestest
 learning_rate: 0.1
 num_layers: 5
 val_frequency: 30
