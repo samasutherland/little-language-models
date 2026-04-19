@@ -2,7 +2,7 @@ prefetch_factor: 8
 
 dataset_factory:
   type: hftext
-  dataset: SimpleStories/
+  dataset: SimpleStories/SimpleStories
   text_column: text
   max_length: 512
   pack_to_max_length: false
