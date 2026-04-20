@@ -334,10 +334,10 @@ class Pretrainer:
         
         print("Finding num layers:")
         # context = self.layer_sweep.run(context)
-        final_batch_size, tokens_per_parameter, total_descent_steps = self.layer_sweep.find_batch_size(context)
-        context = context.fork(batch_size=final_batch_size,
-                       accumulation_steps=max(context.accumulated_batch_size // final_batch_size, 1),
-                       descent_steps=total_descent_steps)
+        # final_batch_size, tokens_per_parameter, total_descent_steps = self.layer_sweep.find_batch_size(context)
+        # context = context.fork(batch_size=final_batch_size,
+        #                accumulation_steps=max(context.accumulated_batch_size // final_batch_size, 1),
+        #                descent_steps=total_descent_steps)
         print("num layers found.")
         print("Finding learning rate:")
         context = self.learning_rate_sweep.run(context)
