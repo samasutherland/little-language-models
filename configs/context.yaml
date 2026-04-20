@@ -3,6 +3,6 @@ batch_size: 64
 descent_steps: 2885
 seed: 67
 experiment_name: simplestories_lr_search
-learning_rate: 0.00587993
+learning_rate: 0.01328149
 num_layers: 21
 val_frequency: 30
