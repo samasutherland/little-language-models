@@ -71,7 +71,7 @@ class LayerSweep:
     def find_batch_size(self, context: Context):
         accumulated_batch_size = context.require("accumulated_batch_size")
         batch_sizes = list(divisors(accumulated_batch_size))[::-1]
-        batch_sizes.insert(0, accumulated_batch_size * 2)
+        # batch_sizes.insert(0, accumulated_batch_size * 2)
     
         any_success = False
         for i, batch_size in enumerate(batch_sizes):
