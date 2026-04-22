@@ -12,7 +12,7 @@ exec > >(tee "/workspace/logs/stdout.log")
 exec 2> >(tee "/workspace/logs/stderr.log" >&2)
 
 #echo "Pretraining..."
-#python3 scripts/1-pretraining.py
+python3 scripts/1-pretraining.py
 
 echo "Training..."
 python3 scripts/2-training.py

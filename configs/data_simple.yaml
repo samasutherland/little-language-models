@@ -1,0 +1,16 @@
+prefetch_factor: 8
+
+dataset_factory:
+  type: hftext
+  dataset: SimpleStories/SimpleStories
+  text_column: story
+  max_length: 512
+  pack_to_max_length: false
+  train_split: train
+  validation_split: test
+  interleave_holdout_every_n: 10000
+  interleave_holdout_block_size: 100
+
+  tokenizer_factory:
+    type: sentencepiece
+    tokenizer_path: data/tokenizers/unigram_4K.model
