@@ -8,3 +8,4 @@ torchinfo
 tiktoken
 sentencepiece
 sympy
+optuna
