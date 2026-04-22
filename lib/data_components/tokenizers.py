@@ -14,7 +14,13 @@ class SentencePieceFactory(Factory[SentencePieceProcessor]):
     tokenizer_path: str
 
     def build(self, ctx: Context) -> SentencePieceProcessor:
-        return SentencePieceProcessor(model_file=self.tokenizer_path)
+        tokenizer_path = getattr(ctx, "tokenizer_path", self.tokenizer_path)
+        if "{vocab_size}" in tokenizer_path:
+            if not hasattr(ctx, "vocab_size"):
+                raise ValueError("Context missing required field: vocab_size for tokenizer_path template.")
+            vocab_size = getattr(ctx, "vocab_size")
+            tokenizer_path = tokenizer_path.format(vocab_size=vocab_size)
+        return SentencePieceProcessor(model_file=tokenizer_path)
 
 
 TokenizerFactory = Annotated[

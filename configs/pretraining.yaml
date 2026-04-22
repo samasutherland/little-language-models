@@ -2,17 +2,18 @@ tokens_per_param: 20
 training_time: 30
 warmup_steps: 5
 
-layer_sweep:
-  type: layersweep
+batch_size_finder:
+  type: batchsizefinder
   descent_steps: 10
-  lower_bound: 4
-  method: first_above
-  
-learning_rate_sweep:
-  type: learningratesweep
-  sweep_time: 6 # 20% of total run time
+
+optuna_search:
+  type: optunasearch
+  n_trials: 30
+  sweep_time: 6
   min_lr: 1.0E-4
   max_lr: 3.0E-2
-  num_lrs: 5
-  variance_window_size: 20
-  variance_weight: 0.0 # Haven't ended up using this
+  accumulated_batch_sizes: [128, 256, 512]
+  min_num_layers: 4
+  max_num_layers: 32
+  vocab_sizes: [4, 8, 12]
+  startup_trials: 5

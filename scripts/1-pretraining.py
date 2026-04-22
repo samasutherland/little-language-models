@@ -37,8 +37,10 @@ def main():
         run_context_dict = yaml.safe_load(f)
     run_context_dict["num_layers"] = context.num_layers
     run_context_dict["batch_size"] = context.batch_size
+    run_context_dict["accumulated_batch_size"] = context.accumulated_batch_size
     run_context_dict["descent_steps"] = context.descent_steps
     run_context_dict["learning_rate"] = context.learning_rate
+    run_context_dict["vocab_size"] = context.require("vocab_size")
     with context_path.open("w") as f:
         yaml.safe_dump(run_context_dict, f)
         
