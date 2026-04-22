@@ -15,4 +15,4 @@ dataset_factory:
 
   tokenizer_factory:
     type: sentencepiece
-    tokenizer_path: data/tokenizers/baby_unigram_10K.model
+    tokenizer_path: data/tokenizers/baby_unigram_12K.model
