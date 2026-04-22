@@ -1,8 +1,8 @@
-accumulated_batch_size: 256
+accumulated_batch_size: 64
 batch_size: 64
 descent_steps: 2885
 seed: 67
-experiment_name: batch_size_search
-learning_rate: 0.03 
+experiment_name: vocab_sweep
+learning_rate: 0.03
 num_layers: 21
-val_frequency: 30
+val_frequency: 150
