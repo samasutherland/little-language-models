@@ -1,4 +1,4 @@
-accumulated_batch_size: 40
+accumulated_batch_size: 51
 batch_size: 64
 descent_steps: 2885
 seed: 67
