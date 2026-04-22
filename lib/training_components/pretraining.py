@@ -87,7 +87,7 @@ class LayerSweep:
         if not any_success:
             # print("No batch sizes successful.")
             return 0, 0, 0
-        final_batch_size = max(batch_size // 2, 1)
+        final_batch_size = max(batch_size, 1)
         _, tokens_per_parameter, total_descent_steps = self.test_memory_fits(context.fork(batch_size=final_batch_size,
                                                                                      accumulation_steps=max(
                                                                                          context.accumulated_batch_size // final_batch_size,
