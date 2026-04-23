@@ -45,7 +45,7 @@ print(d["experiment_name"])
 PY
 )"
 
-base_remote="Gdrive:runpod-uploads/babylm_optuna_run/"
+base_remote="Gdrive:runpod-uploads/babylm_optuna_run"
 
 rclone --config /secrets/rclone.conf copy /workspace/logs/ "${base_remote}/logs/" --create-empty-src-dirs --retries 3
 rclone --config /secrets/rclone.conf copy /workspace/configs/ "${base_remote}/configs/" --create-empty-src-dirs --retries 3

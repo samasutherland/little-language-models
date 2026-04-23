@@ -134,7 +134,7 @@ def main():
         sampler=optuna.samplers.TPESampler(seed=42),
     )
 
-    study.optimize(test_config, n_trials=5)
+    study.optimize(test_config, n_trials=100)
 
     print(f"Best final_val_loss: {study.best_value:.6f}")
     print(f"Best params: {study.best_params}")
