@@ -45,12 +45,12 @@ print(d["experiment_name"])
 PY
 )"
 
-base_remote="Gdrive:runpod-uploads/babylm_optuna_run"
+base_remote="Gdrive:runpod-uploads/simplestories_optuna_run"
 
 rclone --config /secrets/rclone.conf copy /workspace/logs/ "${base_remote}/logs/" --create-empty-src-dirs --retries 3
 rclone --config /secrets/rclone.conf copy /workspace/configs/ "${base_remote}/configs/" --create-empty-src-dirs --retries 3
 #rclone --config /secrets/rclone.conf copy /workspace/data/checkpoints/ "${base_remote}/checkpoints/" --create-empty-src-dirs --retries 3
-rclone --config /secrets/rclone.conf copy /workspace/aim_repo_${RUNPOD_POD_ID}.tar.gz "Gdrive:runpod-uploads/babylm_optuna_run/.aim/" --retries 3
+rclone --config /secrets/rclone.conf copy /workspace/aim_repo_${RUNPOD_POD_ID}.tar.gz "Gdrive:runpod-uploads/simplestories_optuna_run/.aim/" --retries 3
 
 echo "Stopping pod $RUNPOD_POD_ID..."
 runpodctl remove pod "$RUNPOD_POD_ID"
