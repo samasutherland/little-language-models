@@ -122,6 +122,9 @@ def test_config(trial: optuna.Trial):
     trial.set_user_attr("batch_size", int(batch_size))
     trial.set_user_attr("total_descent_steps", int(total_descent_steps))
     trial.set_user_attr("final_train_loss", float(train_loss))
+    print(
+        f"batch size: {acc_batch_size}, lr: {lr}, vocab_size: {vocab_size}, num_layers: {num_layers}, num_heads: {num_heads}, qk_dim: {qk_dim}. Result: {float(final_val_loss)}")
+
     return float(final_val_loss)
 
 def main():
@@ -131,7 +134,7 @@ def main():
         sampler=optuna.samplers.TPESampler(seed=42),
     )
 
-    study.optimize(test_config, n_trials=100)
+    study.optimize(test_config, n_trials=5)
 
     print(f"Best final_val_loss: {study.best_value:.6f}")
     print(f"Best params: {study.best_params}")
