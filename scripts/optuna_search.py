@@ -1,11 +1,15 @@
 import copy
+import math
+from functools import lru_cache
 
 import optuna
 import yaml
 from pathlib import Path
+from sentencepiece import SentencePieceProcessor
 
 from lib import Context
 from lib.component_builder import build_component_from_dict
+from lib.data_components.datasets import _interleave_holdout_split, _load_hf_split_cached
 from lib.training_components.loops import TrainingLoopFactory
 from lib.training_components.pretraining import LayerSweepFactory
 from lib.utils import init_datasets_and_models, init_train_device
@@ -17,6 +21,37 @@ def load_config(path: str | Path):
     with open(path) as f:
         config = yaml.safe_load(f)
     return config
+
+
+@lru_cache
+def _validation_bytes_per_token(
+    dataset_name: str,
+    train_split: str,
+    validation_split: str,
+    text_column: str,
+    interleave_every_n: int,
+    interleave_block_size: int,
+    tokenizer_path: str,
+) -> float:
+    if train_split == validation_split:
+        base_split = _load_hf_split_cached(dataset_name, train_split)
+        validation_split_ds = _interleave_holdout_split(
+            base_split,
+            split="validation",
+            every_n=interleave_every_n,
+            holdout_block_size=interleave_block_size,
+        )
+    else:
+        validation_split_ds = _load_hf_split_cached(dataset_name, validation_split)
+
+    texts = validation_split_ds[text_column]
+    total_bytes = sum(len(text.encode("utf-8")) for text in texts)
+    tokenizer = SentencePieceProcessor(model_file=tokenizer_path)
+    total_tokens = sum(len(tokenizer.Encode(text, out_type=int)) for text in texts)
+
+    if total_tokens == 0:
+        raise ValueError("Validation split produced zero tokens; cannot compute BPB.")
+    return total_bytes / total_tokens
 
 
 def test_config(trial: optuna.Trial):
@@ -122,10 +157,25 @@ def test_config(trial: optuna.Trial):
     trial.set_user_attr("batch_size", int(batch_size))
     trial.set_user_attr("total_descent_steps", int(total_descent_steps))
     trial.set_user_attr("final_train_loss", float(train_loss))
+    trial.set_user_attr("final_val_loss", float(final_val_loss))
+    bytes_per_token = _validation_bytes_per_token(
+        dataset_name=data_cfg["dataset_factory"]["dataset"],
+        train_split=data_cfg["dataset_factory"]["train_split"],
+        validation_split=data_cfg["dataset_factory"]["validation_split"],
+        text_column=data_cfg["dataset_factory"]["text_column"],
+        interleave_every_n=data_cfg["dataset_factory"].get("interleave_holdout_every_n", 10000),
+        interleave_block_size=data_cfg["dataset_factory"].get("interleave_holdout_block_size", 100),
+        tokenizer_path=data_cfg["dataset_factory"]["tokenizer_factory"]["tokenizer_path"],
+    )
+    bpb = float(final_val_loss) / (math.log(2) * bytes_per_token)
+    trial.set_user_attr("bytes_per_token", float(bytes_per_token))
+    trial.set_user_attr("bpb", bpb)
     print(
-        f"batch size: {acc_batch_size}, lr: {lr}, vocab_size: {vocab_size}, num_layers: {num_layers}, num_heads: {num_heads}, qk_dim: {qk_dim}. Result: {float(final_val_loss)}")
+        f"batch size: {acc_batch_size}, lr: {lr}, vocab_size: {vocab_size}, num_layers: {num_layers}, num_heads: {num_heads}, qk_dim: {qk_dim}. "
+        f"val_loss: {float(final_val_loss)} bpb: {bpb}"
+    )
 
-    return float(final_val_loss)
+    return bpb
 
 def main():
     study = optuna.create_study(
@@ -136,7 +186,7 @@ def main():
 
     study.optimize(test_config, n_trials=100)
 
-    print(f"Best final_val_loss: {study.best_value:.6f}")
+    print(f"Best objective (BPB): {study.best_value:.6f}")
     print(f"Best params: {study.best_params}")
 
 if __name__ == "__main__":
