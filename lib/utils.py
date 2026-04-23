@@ -3,7 +3,7 @@ from contextlib import nullcontext
 from pathlib import Path
 import yaml
 
-from lib.component_builder import build_component_from_config
+from lib.component_builder import build_component_from_config, build_component_from_dict
 
 from lib.data_components import DataLoaderFactory  
 from lib.model_components import LanguageModelFactory
@@ -18,16 +18,49 @@ def init_train_device():
     
     return device, amp_ctx
 
-def init_datasets(context):
-    train_dataloader = build_component_from_config(DataLoaderFactory, "configs/data.yaml",
-                                                   context.fork(split="train"))
-    val_dataloader = build_component_from_config(DataLoaderFactory, "configs/data.yaml", context.fork(split="validation"))
+def init_datasets(context, data_config_dict=None):
+    if data_config_dict is None:
+        train_dataloader = build_component_from_config(
+            DataLoaderFactory,
+            "configs/data.yaml",
+            context.fork(split="train"),
+        )
+        val_dataloader = build_component_from_config(
+            DataLoaderFactory,
+            "configs/data.yaml",
+            context.fork(split="validation"),
+        )
+    else:
+        train_dataloader = build_component_from_dict(
+            DataLoaderFactory,
+            data_config_dict,
+            context.fork(split="train"),
+        )
+        val_dataloader = build_component_from_dict(
+            DataLoaderFactory,
+            data_config_dict,
+            context.fork(split="validation"),
+        )
     return train_dataloader, val_dataloader
 
-def init_datasets_and_models(context, shuffle=True):
-    (train_dataloader, data_config), (val_dataloader, data_config) = init_datasets(context.fork(shuffle=shuffle))
+def init_datasets_and_models(context, shuffle=True, data_config_dict=None, model_config_dict=None):
+    (train_dataloader, data_config), (val_dataloader, data_config) = init_datasets(
+        context.fork(shuffle=shuffle),
+        data_config_dict=data_config_dict,
+    )
     context.merge({"train_dataloader": train_dataloader, "val_dataloader": val_dataloader})
-    model, model_config = build_component_from_config(LanguageModelFactory, "configs/model.yaml", context)
+    if model_config_dict is None:
+        model, model_config = build_component_from_config(
+            LanguageModelFactory,
+            "configs/model.yaml",
+            context,
+        )
+    else:
+        model, model_config = build_component_from_dict(
+            LanguageModelFactory,
+            model_config_dict,
+            context,
+        )
     device = context.require("device")
     model = model.to(device)
     context.merge({"model": model})

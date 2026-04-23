@@ -40,9 +40,13 @@ class LayerSweep:
         if self.method not in ["closest", "first_above"]:
             raise ValueError("method must be either closest or first_above")
 
-    def test_memory_fits(self, context: Context):
+    def test_memory_fits(self, context: Context, data_config_dict=None, model_config_dict=None):
         try:
-            context, _ = init_datasets_and_models(context)
+            context, _ = init_datasets_and_models(
+                context,
+                data_config_dict=data_config_dict,
+                model_config_dict=model_config_dict,
+            )
             evaluation_loop, evaluation_loop_config = build_component_from_config(BenchmarkingLoopFactory,
                                                                                   "configs/training.yaml", context)
             evaluation_loop.descent_steps = self.descent_steps
@@ -68,17 +72,21 @@ class LayerSweep:
             print(e)
             return False, 0, 0
 
-    def find_batch_size(self, context: Context):
+    def find_batch_size(self, context: Context, data_config_dict=None, model_config_dict=None):
         accumulated_batch_size = context.require("accumulated_batch_size")
         batch_sizes = list(divisors(accumulated_batch_size))[::-1]
         # batch_sizes.insert(0, accumulated_batch_size * 2)
     
         any_success = False
         for i, batch_size in enumerate(batch_sizes):
-            success, tokens_per_parameter, total_descent_steps = self.test_memory_fits(context.fork(batch_size=batch_size,
-                                                                                               accumulation_steps=max(
-                                                                                                   context.accumulated_batch_size // batch_size,
-                                                                                                   1)))
+            success, tokens_per_parameter, total_descent_steps = self.test_memory_fits(
+                context.fork(
+                    batch_size=batch_size,
+                    accumulation_steps=max(context.accumulated_batch_size // batch_size, 1),
+                ),
+                data_config_dict=data_config_dict,
+                model_config_dict=model_config_dict,
+            )
             if success:
                 # print(f"Batch size {batch_size} passed")
                 any_success = True
@@ -88,10 +96,14 @@ class LayerSweep:
             # print("No batch sizes successful.")
             return 0, 0, 0
         final_batch_size = max(batch_size, 1)
-        _, tokens_per_parameter, total_descent_steps = self.test_memory_fits(context.fork(batch_size=final_batch_size,
-                                                                                     accumulation_steps=max(
-                                                                                         context.accumulated_batch_size // final_batch_size,
-                                                                                         1)))
+        _, tokens_per_parameter, total_descent_steps = self.test_memory_fits(
+            context.fork(
+                batch_size=final_batch_size,
+                accumulation_steps=max(context.accumulated_batch_size // final_batch_size, 1),
+            ),
+            data_config_dict=data_config_dict,
+            model_config_dict=model_config_dict,
+        )
         return final_batch_size, tokens_per_parameter, total_descent_steps
     
     def run(self, 
