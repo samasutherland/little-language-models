@@ -1,16 +1,18 @@
 prefetch_factor: 8
 
 dataset_factory:
-  type: hftext
-  dataset: SimpleStories/SimpleStories
-  text_column: story
+  type: hftext_iterable
+  dataset: BabyLM-community/BabyLM-2026-Strict
+  text_column: text
   max_length: 512
-  pack_to_max_length: false
+  shuffle: true
+  shuffle_buffer_size: 1024
+  drop_last: true
   train_split: train
-  validation_split: test
+  validation_split: train
   interleave_holdout_every_n: 10000
   interleave_holdout_block_size: 100
 
   tokenizer_factory:
     type: sentencepiece
-    tokenizer_path: data/tokenizers/unigram_4K.model
+    tokenizer_path: data/tokenizers/baby_unigram_6K.model

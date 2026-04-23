@@ -59,7 +59,7 @@ def test_config(trial: optuna.Trial):
     acc_batch_size_exponent = trial.suggest_int("acc_batch_size_exponent", low=4, high=8)
     acc_batch_size = 2 ** acc_batch_size_exponent
     lr = trial.suggest_float("lr", 1e-4, 3e-2, log=True)
-    vocab_size = trial.suggest_int("vocab_size", 2, 10, step=2)
+    vocab_size = trial.suggest_int("vocab_size", 2, 12, step=2)
     num_layers = trial.suggest_int("num_layers", 4, 32)
 
     num_heads = trial.suggest_int("num_heads", 2, 8, step=1)
@@ -83,7 +83,7 @@ def test_config(trial: optuna.Trial):
     ctx.merge(ctx_cfg)
     ctx.merge(server_context)
     
-    data_cfg["dataset_factory"]["tokenizer_factory"]["tokenizer_path"] = f"data/tokenizers/unigram_{vocab_size}K.model"
+    data_cfg["dataset_factory"]["tokenizer_factory"]["tokenizer_path"] = f"data/tokenizers/baby_unigram_{vocab_size}K.model"
 
     embedding_dim = num_heads * qk_dim
     model_cfg["embedding_dim"] = embedding_dim
