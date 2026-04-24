@@ -9,7 +9,7 @@ Read more about the experiments at [my blog](https://samasutherland.github.io/lL
 - `configs/`: Configuration files for managing experiments
 - `scripts/`: Pretraining/training/posttraining entrypoints and utilities
 - `lib/`: Library containing model/data/training components and implementations
-- `notebooks/` - analysis and figures
+- `notebooks/` - Analysis and figures
 
 ## Training Workflow
 1. **Pretraining** (`scripts/1-pretraining.py`)
