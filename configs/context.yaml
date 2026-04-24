@@ -1,8 +1,8 @@
-accumulated_batch_size: 64
-batch_size: 64
-descent_steps: 2885
-seed: 101
-experiment_name: babylm_final_manual_results
-learning_rate: 0.03
-num_layers: 12
+accumulated_batch_size: 32
+batch_size: 32
+descent_steps: 16180
+seed: 100
+experiment_name: babylm_optuna_results
+learning_rate: 0.014664
+num_layers: 32
 val_frequency: 150
