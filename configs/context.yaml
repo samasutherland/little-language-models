@@ -1,7 +1,7 @@
 accumulated_batch_size: 64
 batch_size: 64
 descent_steps: 2885
-seed: 100
+seed: 101
 experiment_name: babylm_final_manual_results
 learning_rate: 0.03
 num_layers: 12
