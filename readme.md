@@ -48,7 +48,43 @@ To run an optuna search over hyperparameters, use
 Note that hyperparameter search variables are currently hard-coded into the script.
 
 ### Runpod Training
-To train on runpod, you must first load the relevant *** please complete***
+RunPod training is launched automatically by the GitHub Action in `.github/workflows/build_and_push_docker.yml`. If you would like to train some models via runpod you must do a few things first:
+1. Fork this github repo.
+2. Create a runpod account and add money. Generate and note down an API key.
+3. Create a RunPod template, set the start command to `bash -lc ./scripts/start.sh`. You can use mine if you like: `9m9g78tjqi`
+4. I use gdrive to store the results. If you would also like to use this, add `RUNPOD_SECRET_RCLONE_GDRIVE_CONF` to the runpod template. This value should be your base64-encoded `rclone.conf`, and is decoded to `/secrets/rclone.conf` in the container. Otherwise, change start.sh to use some other network storage.
+5. Create a dockerhub account. Note down the access token.
+6. Add necessary secrets to the github repo:
+   1. `DOCKERHUB_TOKEN`: Docker Hub access token with permission to push images.
+   2. `RUNPOD_API_KEY`: RunPod API key with permission to list/create pods.
+7. Add necessary variables to the github repo:
+   1. `DOCKERHUB_USERNAME`: Your Docker Hub username/namespace.
+   2. `RUNPOD_TEMPLATE_ID`: The RunPod template ID used when creating the pod.
+
+The github action workflow then has two jobs:
+1. **`build-push`**
+   - Logs into Docker Hub.
+   - Builds the image from `dockerfile`.
+   - Pushes two tags:
+     - `docker.io/<DOCKERHUB_USERNAME>/model_trainer:latest`
+     - `docker.io/<DOCKERHUB_USERNAME>/model_trainer:sha-<commit-sha>`
+   - Exposes the SHA-tagged image as an output for the next job.
+   - Converts the latest commit message into a RunPod-safe pod name.
+
+2. **`launch-pod`**
+   - Performs an auth preflight call to RunPod (`GET /v1/pods`).
+   - Creates a new secure 1x RTX 4090 pod using your template ID.
+   - Injects environment variables into the pod:
+     - `GIT_SHA`
+     - `IMAGE_TAG`
+     - `POD_NAME`
+   - The container runs `scripts/start.sh`, which:
+     - runs pretraining, training, and posttraining,
+     - archives `.aim`,
+     - uploads logs/configs/artifacts via `rclone`,
+     - removes the pod when complete.
+
+This action is triggered whenever code is pushed to `train`, so be careful pushing to that branch or you could cost yourself money!
 
 ## Configuration Files
 Each configuration file is responsible for its own relevant parameters:
