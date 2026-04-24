@@ -11,25 +11,22 @@ mkdir -p /workspace/logs
 exec > >(tee "/workspace/logs/stdout.log")
 exec 2> >(tee "/workspace/logs/stderr.log" >&2)
 
-# #echo "Pretraining..."
-# python3 scripts/1-pretraining.py
+#echo "Pretraining..."
+python3 scripts/1-pretraining.py
 
-# echo "Training..."
-# python3 scripts/2-training.py
-# #if timeout -k 10m 30m python3 scripts/2-training.py; then
-# #  rc=0
-# #else
-# #  rc=$?
-# #fi
-# #echo "train_model.py exited with $rc"
-# #sync
-# #sleep 2
+echo "Training..."
+python3 scripts/2-training.py
+#if timeout -k 10m 30m python3 scripts/2-training.py; then
+#  rc=0
+#else
+#  rc=$?
+#fi
+#echo "train_model.py exited with $rc"
+#sync
+#sleep 2
 
-# echo "Posttraining..."
-# python3 scripts/3-posttraining.py
-
-echo "starting optuna run"
-python3 scripts/optuna_search.py
+echo "Posttraining..."
+python3 scripts/3-posttraining.py
 
 tar -C /workspace -czf /workspace/aim_repo_${RUNPOD_POD_ID}.tar.gz .aim
 
@@ -44,13 +41,14 @@ with p.open("r") as f:
 print(d["experiment_name"])
 PY
 )"
-
-base_remote="Gdrive:runpod-uploads/babylm_optuna_run"
+  
+aim_run_hash="$(cat "/workspace/data/checkpoints/aim_run_hash.txt")"
+base_remote="Gdrive:runpod-uploads/${experiment_name}/${aim_run_hash}"
 
 rclone --config /secrets/rclone.conf copy /workspace/logs/ "${base_remote}/logs/" --create-empty-src-dirs --retries 3
 rclone --config /secrets/rclone.conf copy /workspace/configs/ "${base_remote}/configs/" --create-empty-src-dirs --retries 3
 #rclone --config /secrets/rclone.conf copy /workspace/data/checkpoints/ "${base_remote}/checkpoints/" --create-empty-src-dirs --retries 3
-rclone --config /secrets/rclone.conf copy /workspace/aim_repo_${RUNPOD_POD_ID}.tar.gz "Gdrive:runpod-uploads/babylm_optuna_run/.aim/" --retries 3
+rclone --config /secrets/rclone.conf copy /workspace/aim_repo_${RUNPOD_POD_ID}.tar.gz "Gdrive:runpod-uploads/${experiment_name}/.aim/" --retries 3
 
 echo "Stopping pod $RUNPOD_POD_ID..."
 runpodctl remove pod "$RUNPOD_POD_ID"

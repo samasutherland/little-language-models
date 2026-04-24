@@ -1,4 +1,4 @@
-tokens_per_param: 20
+tokens_per_param: 70
 training_time: 30
 warmup_steps: 5
 
