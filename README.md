@@ -12,16 +12,16 @@ Read more about the experiments at [my blog](https://samasutherland.github.io/lL
 - `notebooks/` - analysis and figures
 
 ## Training Workflow
-1. **Pretraining stage** (`scripts/1-pretraining.py`)
+1. **Pretraining** (`scripts/1-pretraining.py`)
    - Scales the number of layers in a model to achieve a desired ratio of tokens processed to model parameters
    - Chooses the best batch size to maximise GPU memory usage
    - Performs a learning rate sweep on a reduced runtime subset
-   - Warning that this stages writes new parameters to the context.yaml configuration file.
-2. **Training stage** (`scripts/2-training.py`)
+   - Warning that this stage writes new parameters to the context.yaml configuration file.
+2. **Training** (`scripts/2-training.py`)
    - Trains model for target time period
    - Logs metrics to Aim
    - Saves checkpoints
-3. **Posttraining stage** (`scripts/3-posttraining.py`)
+3. **Posttraining** (`scripts/3-posttraining.py`)
    - Evaluates the trained model on the validation/test set
    - Generates some example generations using test prompts defined in the script
    - Logs posttraining metrics/examples to Aim
