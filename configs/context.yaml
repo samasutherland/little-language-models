@@ -1,8 +1,8 @@
-accumulated_batch_size: 32
-batch_size: 32
-descent_steps: 16180
-seed: 101
-experiment_name: babylm_optuna_results
-learning_rate: 0.014664
-num_layers: 32
-val_frequency: 150
+accumulated_batch_size: 64
+batch_size: 64
+descent_steps: 39140
+seed: 100
+experiment_name: simplestories_optuna_results
+learning_rate: 0.006036
+num_layers: 5
+val_frequency: 400
