@@ -1,12 +1,11 @@
 # little Language Models (lLMs)
-## Overview
 This repo is where I am running a series of personal experiments to investigate architectural changes in small-scale language models.
 The framework is driven by pydantic, allowing experiments to be configured via a centralised configuration directory.
 Modules are coupled to Factory classes, allowing extensible addition of components.
 The main goal of this repository is for me to brush up on ML skills, gain experience with natural language processing, and satisfy my curiosity on how wacky ideas can affect performance.
 Read more about the experiments at [my blog](https://samasutherland.github.io/lLMs/)
 
-## Repository Layout
+## Layout
 - `configs/`: Configuration files for managing experiments
 - `scripts/`: Pretraining/training/posttraining entrypoints and utilities
 - `lib/`: Library containing model/data/training components and implementations
