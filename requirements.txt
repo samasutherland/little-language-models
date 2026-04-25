@@ -9,3 +9,5 @@ torchinfo
 tiktoken
 sentencepiece
 sympy
+cuquantum
+opt_einsum
