@@ -1,8 +1,8 @@
 accumulated_batch_size: 64
 batch_size: 64
 descent_steps: 39140
-seed: 42
-experiment_name: projection_dim_sweep_2
+seed: 100
+experiment_name: latent_attention_final_runs
 learning_rate: 0.006036
 num_layers: 5
 val_frequency: 400
