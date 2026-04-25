@@ -11,7 +11,7 @@ layer_sweep:
 learning_rate_sweep:
   type: learningratesweep
   sweep_time: 6 # 20% of total run time
-  min_lr: 1.0E-4
+  min_lr: 1.45E-3
   max_lr: 3.0E-2
   num_lrs: 5
   variance_window_size: 20
