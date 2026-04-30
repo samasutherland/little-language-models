@@ -22,7 +22,7 @@ transformer_layer_factory:
     type: rmsnorm
 
   attention_factory:
-    type: latentmultiheadselfattention
+    type: multiheadselfattention
     max_context: 512
     qk_dim: 64
     v_dim: 64
@@ -31,7 +31,6 @@ transformer_layer_factory:
     sdpa: true
     dropout: 0.0
     reproject: true
-    projection_dim: 512
 
     positional_encoding_factory:
       type: rope
