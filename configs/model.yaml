@@ -31,7 +31,7 @@ transformer_layer_factory:
     sdpa: true
     dropout: 0.0
     reproject: true
-    projection_dim: 96
+    projection_dim: 128
 
     positional_encoding_factory:
       type: rope
