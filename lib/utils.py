@@ -43,7 +43,7 @@ def init_datasets(context, data_config_dict=None):
         )
     return train_dataloader, val_dataloader
 
-def init_datasets_and_models(context, shuffle=True, data_config_dict=None, model_config_dict=None):
+def init_datasets_and_models(context, shuffle=True, data_config_dict=None, model_config_dict=None, compile="reduce-overhead"):
     (train_dataloader, data_config), (val_dataloader, data_config) = init_datasets(
         context.fork(shuffle=shuffle),
         data_config_dict=data_config_dict,
@@ -63,7 +63,10 @@ def init_datasets_and_models(context, shuffle=True, data_config_dict=None, model
         )
     device = context.require("device")
     model = model.to(device)
+    if compile is not None:
+        model = torch.compile(model, mode=compile)
     context.merge({"model": model})
+    
     return context, {"data": data_config, "model": model_config}
 
 def init_runtime_contexts():
