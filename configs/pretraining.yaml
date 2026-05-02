@@ -1,6 +1,6 @@
 tokens_per_param: 70
 training_time: 30
-warmup_steps: 100
+warmup_steps: 200
 
 layer_sweep:
   type: layersweep
