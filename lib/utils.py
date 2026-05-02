@@ -82,13 +82,34 @@ def init_runtime_contexts():
     return context, {"run_context": run_context_dict, "server": server_dict}
 
 
+# def warmup_dataloader_and_model(loop, warmup_steps: int):
+#     dataloader = iter(loop.dataloader)
+#     model = loop.evaluation_step.model
+#     device = loop.evaluation_step.device
+#     model.train()
+#     if warmup_steps <= 0:
+#         return dataloader
+#     for _ in range(warmup_steps):
+#         try:
+#             x = next(dataloader)
+#         except StopIteration:
+#             if loop.loop_dataset:
+#                 dataloader = iter(loop.dataloader)
+#                 x = next(dataloader)
+#             else:
+#                 break
+#                 
+#         x = x.to(device, non_blocking=True)
+#         _ = model(x[:, :-1])
+#     return dataloader
+
 def warmup_dataloader_and_model(loop, warmup_steps: int):
     dataloader = iter(loop.dataloader)
-    model = loop.evaluation_step.model
-    device = loop.evaluation_step.device
-    model.train()
+    optimizer = loop.gradient_step.optimizer
+
     if warmup_steps <= 0:
         return dataloader
+
     for _ in range(warmup_steps):
         try:
             x = next(dataloader)
@@ -97,10 +118,13 @@ def warmup_dataloader_and_model(loop, warmup_steps: int):
                 dataloader = iter(loop.dataloader)
                 x = next(dataloader)
             else:
-                break
-                
-        x = x.to(device, non_blocking=True)
-        _ = model(x[:, :-1])
+                return dataloader
+
+        loss = loop.evaluation_step.step(x)
+        loss.backward()
+
+        optimizer.zero_grad(set_to_none=True)
+
     return dataloader
 
 
