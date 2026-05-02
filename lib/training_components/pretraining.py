@@ -25,7 +25,7 @@ from lib.training_components.steps import EvaluationStep, GradientStep, Validati
 from lib.training_components.loops import BenchmarkingLoopFactory
 import time
 
-from ..utils import init_datasets_and_models, build_component_from_config, warmup_dataloader
+from ..utils import init_datasets_and_models, build_component_from_config, warmup_dataloader_and_model
 from sympy import divisors
 
 
@@ -52,7 +52,7 @@ class LayerSweep:
             evaluation_loop.descent_steps = self.descent_steps
             # Exclude validation from throughput timing; run configured validation separately.
             evaluation_loop.val_frequency = evaluation_loop.descent_steps + 1
-            dataloader_iter = warmup_dataloader(evaluation_loop, context.require("warmup_steps"))
+            dataloader_iter = warmup_dataloader_and_model(evaluation_loop, context.require("warmup_steps"))
             start = time.perf_counter()
             token_count, *_ = evaluation_loop.run(dataloader_iter=dataloader_iter)
             end = time.perf_counter()
@@ -242,7 +242,7 @@ class LearningRateSweep:
                 accumulation_steps=max(context.accumulated_batch_size // context.batch_size, 1)))
         # Exclude validation from timing and evaluate once separately using configured validation_batches.
         evaluation_loop.descent_steps = lr_descent_steps
-        dataloader_iter = warmup_dataloader(evaluation_loop, context.require("warmup_steps"))
+        dataloader_iter = warmup_dataloader_and_model(evaluation_loop, context.require("warmup_steps"))
         start = time.perf_counter()
         token_count, loss, val_loss, best_loss, best_val_loss, descent_steps, loss_history = evaluation_loop.run(
             return_loss_history=True,

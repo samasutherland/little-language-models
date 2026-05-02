@@ -82,19 +82,25 @@ def init_runtime_contexts():
     return context, {"run_context": run_context_dict, "server": server_dict}
 
 
-def warmup_dataloader(loop, warmup_steps: int):
+def warmup_dataloader_and_model(loop, warmup_steps: int):
     dataloader = iter(loop.dataloader)
+    model = loop.evaluation_step.model
+    device = loop.evaluation_step.device
+    model.train()
     if warmup_steps <= 0:
         return dataloader
     for _ in range(warmup_steps):
         try:
-            _ = next(dataloader)
+            x = next(dataloader)
         except StopIteration:
             if loop.loop_dataset:
                 dataloader = iter(loop.dataloader)
-                _ = next(dataloader)
+                x = next(dataloader)
             else:
                 break
+                
+        x = x.to(device, non_blocking=True)
+        _ = model(x[:, :-1])
     return dataloader
 
 
