@@ -1,10 +1,10 @@
 tokens_per_param: 70
 training_time: 30
-warmup_steps: 5
+warmup_steps: 100
 
 layer_sweep:
   type: layersweep
-  descent_steps: 10
+  descent_steps: 100
   lower_bound: 4
   method: first_above
   
