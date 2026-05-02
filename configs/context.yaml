@@ -1,8 +1,8 @@
 accumulated_batch_size: 64
 batch_size: 64
 descent_steps: 39140
-seed: 44
-experiment_name: latent_attention_compilation_test_4
+seed: 42
+experiment_name: latent_attention_compilation_test_4_non_compiled
 learning_rate: 0.0072
 num_layers: 12
 val_frequency: 400

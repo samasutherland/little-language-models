@@ -43,7 +43,7 @@ def init_datasets(context, data_config_dict=None):
         )
     return train_dataloader, val_dataloader
 
-def init_datasets_and_models(context, shuffle=True, data_config_dict=None, model_config_dict=None, compile="reduce-overhead"):
+def init_datasets_and_models(context, shuffle=True, data_config_dict=None, model_config_dict=None, compile=None):
     (train_dataloader, data_config), (val_dataloader, data_config) = init_datasets(
         context.fork(shuffle=shuffle),
         data_config_dict=data_config_dict,
